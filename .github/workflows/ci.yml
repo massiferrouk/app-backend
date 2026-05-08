@@ -54,24 +54,3 @@ jobs:
         with:
           name: test-results
           path: target/surefire-reports/
-
-  # ============================================================
-  # JOB 2 : Déploiement sur Railway (uniquement sur main)
-  # ============================================================
-  deploy:
-    name: Deploy to Railway
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service backend

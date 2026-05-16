@@ -1,5 +1,6 @@
 package com.yuniv.backend.config;
 
+import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,6 +8,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfi
 import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +25,11 @@ class MDCFilterTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // AuthController est chargé par @WebMvcTest (tous les @RestController sont inclus).
+    // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
+    @MockitoBean
+    private AuthService authService;
 
     // Capture la valeur du MDC pendant le traitement de la requête
     static String capturedRequestId;

@@ -1,5 +1,6 @@
 package com.yuniv.backend.config;
 
+import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -7,6 +8,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAut
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
@@ -15,13 +17,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 // On exclut Spring Security ici : ce test cible CORS uniquement.
-// La SecurityConfig sera configurée dans US-002 avec .cors(withDefaults()).
+// La SecurityConfig sera configurée dans APP-002 avec .cors(withDefaults()).
 @WebMvcTest(excludeAutoConfiguration = {SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class})
 @TestPropertySource(properties = "cors.allowed-origins=http://localhost:3000")
 class CorsConfigTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // AuthController est chargé par @WebMvcTest (tous les @RestController sont inclus).
+    // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
+    @MockitoBean
+    private AuthService authService;
 
     @Test
     void shouldAllowConfiguredOrigin() throws Exception {

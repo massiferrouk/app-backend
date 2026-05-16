@@ -1,5 +1,6 @@
 package com.yuniv.backend.exception;
 
+import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -7,6 +8,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAut
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,6 +23,11 @@ class GlobalExceptionHandlerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // AuthController est chargé par @WebMvcTest (tous les @RestController sont inclus).
+    // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
+    @MockitoBean
+    private AuthService authService;
 
     // Controller interne au test : chaque endpoint lève une exception différente
     @RestController

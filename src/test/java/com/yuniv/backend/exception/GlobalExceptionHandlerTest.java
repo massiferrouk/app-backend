@@ -1,5 +1,7 @@
 package com.yuniv.backend.exception;
 
+import com.yuniv.backend.security.CustomUserDetailsService;
+import com.yuniv.backend.security.JwtUtil;
 import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +30,12 @@ class GlobalExceptionHandlerTest {
     // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     // Controller interne au test : chaque endpoint lève une exception différente
     @RestController

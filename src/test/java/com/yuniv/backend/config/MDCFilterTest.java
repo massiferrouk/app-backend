@@ -1,5 +1,7 @@
 package com.yuniv.backend.config;
 
+import com.yuniv.backend.security.CustomUserDetailsService;
+import com.yuniv.backend.security.JwtUtil;
 import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -30,6 +32,12 @@ class MDCFilterTest {
     // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     // Capture la valeur du MDC pendant le traitement de la requête
     static String capturedRequestId;

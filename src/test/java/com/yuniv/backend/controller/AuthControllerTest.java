@@ -8,6 +8,8 @@ import com.yuniv.backend.model.dto.request.RegisterRequest;
 import com.yuniv.backend.model.dto.response.AuthResponse;
 import com.yuniv.backend.model.dto.response.UserResponse;
 import com.yuniv.backend.model.enums.UserRole;
+import com.yuniv.backend.security.CustomUserDetailsService;
+import com.yuniv.backend.security.JwtUtil;
 import com.yuniv.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +44,12 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     // ─── Tests inscription ────────────────────────────────────────────────────
 

@@ -106,6 +106,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     private void sendRateLimitResponse(HttpServletResponse response, String path) throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        // Standard HTTP RFC 6585 : indique au client combien de secondes attendre avant de réessayer
+        response.setHeader("Retry-After", "60");
 
         ErrorResponse errorResponse = new ErrorResponse(
                 "RATE_LIMIT_EXCEEDED",

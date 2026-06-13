@@ -89,6 +89,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    // Vide tous les buckets — utilisé dans les tests pour repartir d'un état propre
+    public void resetBuckets() {
+        buckets.clear();
+    }
+
     // Récupère l'IP réelle du client
     // X-Forwarded-For = header ajouté par les proxys/load balancers (Railway, Nginx...)
     // Sans ce header, on prendrait toujours l'IP du proxy, pas du vrai client

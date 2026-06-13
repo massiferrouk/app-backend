@@ -1,6 +1,7 @@
 package com.yuniv.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuniv.backend.config.RateLimitingFilter;
 import com.yuniv.backend.exception.DuplicateEmailException;
 import com.yuniv.backend.model.dto.request.LoginRequest;
 import com.yuniv.backend.model.dto.request.RefreshRequest;
@@ -11,6 +12,7 @@ import com.yuniv.backend.model.enums.UserRole;
 import com.yuniv.backend.security.CustomUserDetailsService;
 import com.yuniv.backend.security.JwtUtil;
 import com.yuniv.backend.service.AuthService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -42,6 +44,9 @@ class AuthControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private RateLimitingFilter rateLimitingFilter;
+
     @MockitoBean
     private AuthService authService;
 
@@ -50,6 +55,14 @@ class AuthControllerTest {
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;
+
+    // Réinitialise les buckets avant chaque test pour que chacun parte d'un état propre.
+    // Sans ça, les 4 tests qui appellent /auth/register épuisent le bucket (limite 3/min)
+    // et le 4ème test obtient 429 au lieu du statut attendu.
+    @BeforeEach
+    void resetRateLimiting() {
+        rateLimitingFilter.resetBuckets();
+    }
 
     // ─── Tests inscription ────────────────────────────────────────────────────
 

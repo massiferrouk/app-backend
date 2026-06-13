@@ -32,6 +32,13 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("DUPLICATE_EMAIL", ex.getMessage(), request.getRequestURI()));
     }
 
+    @ExceptionHandler(ProfileAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleProfileAlreadyExists(ProfileAlreadyExistsException ex,
+                                                                    HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of("PROFILE_ALREADY_EXISTS", ex.getMessage(), request.getRequestURI()));
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex,
                                                             HttpServletRequest request) {

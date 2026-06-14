@@ -34,7 +34,7 @@ public class AlternanceSchedule {
     private LocalDate semaine;
 
     // 'A' = ville école | 'B' = ville entreprise
-    @Column(nullable = false, length = 1)
+    @Column(nullable = false, columnDefinition = "CHAR(1)")
     private String label;
 
     // false = généré automatiquement | true = modifié manuellement par l'alternant

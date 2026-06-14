@@ -8,6 +8,7 @@ import com.studup.backend.model.dto.response.UserResponse;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,9 @@ class RateLimitingTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private AlternantProfileService alternantProfileService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

@@ -4,6 +4,7 @@ import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
+import com.studup.backend.service.ProprietaireProfileService;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,9 @@ class MDCFilterTest {
 
     @MockitoBean
     private AlternantProfileService alternantProfileService;
+
+    @MockitoBean
+    private ProprietaireProfileService proprietaireProfileService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

@@ -2,6 +2,7 @@ package com.studup.backend.config;
 
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,9 @@ class CorsConfigTest {
     // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private AlternantProfileService alternantProfileService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

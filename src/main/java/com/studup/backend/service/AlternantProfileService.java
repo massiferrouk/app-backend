@@ -19,7 +19,6 @@ import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 public class AlternantProfileService {
@@ -37,12 +36,12 @@ public class AlternantProfileService {
     }
 
     @Transactional
-    public AlternantProfileResponse createProfile(UUID userId, CreateAlternantProfileRequest request) {
+    public AlternantProfileResponse createProfile(String email, CreateAlternantProfileRequest request) {
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        if (profileRepository.existsByUserId(userId)) {
+        if (profileRepository.existsByUserId(user.getId())) {
             throw new ProfileAlreadyExistsException("Un profil alternant existe déjà pour ce compte");
         }
 
@@ -75,10 +74,25 @@ public class AlternantProfileService {
         return AlternantProfileResponse.from(profile, schedule.size());
     }
 
-    @Transactional
-    public AlternantProfileResponse updateProfile(UUID userId, CreateAlternantProfileRequest request) {
+    @Transactional(readOnly = true)
+    public AlternantProfileResponse getProfile(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        AlternantProfile profile = profileRepository.findByUserId(userId)
+        AlternantProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Profil alternant introuvable"));
+
+        List<AlternanceSchedule> schedule = scheduleRepository.findByProfileIdOrderBySemaineAsc(profile.getId());
+        return AlternantProfileResponse.from(profile, schedule.size());
+    }
+
+    @Transactional
+    public AlternantProfileResponse updateProfile(String email, CreateAlternantProfileRequest request) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        AlternantProfile profile = profileRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Profil alternant introuvable"));
 
         if (!request.dateDebut().isBefore(request.dateFin())) {

@@ -1,24 +1,23 @@
 package com.studup.backend.service;
 
+import com.studup.backend.algorithm.ScheduleGenerator;
 import com.studup.backend.exception.ProfileAlreadyExistsException;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.request.CreateAlternantProfileRequest;
 import com.studup.backend.model.dto.response.AlternantProfileResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.JourFerie;
 import com.studup.backend.model.entity.User;
-import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.JourFerieRepository;
 import com.studup.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.temporal.TemporalAdjusters;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class AlternantProfileService {
@@ -26,13 +25,19 @@ public class AlternantProfileService {
     private final AlternantProfileRepository profileRepository;
     private final AlternanceScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
+    private final JourFerieRepository jourFerieRepository;
+    private final ScheduleGenerator scheduleGenerator;
 
     public AlternantProfileService(AlternantProfileRepository profileRepository,
                                    AlternanceScheduleRepository scheduleRepository,
-                                   UserRepository userRepository) {
+                                   UserRepository userRepository,
+                                   JourFerieRepository jourFerieRepository,
+                                   ScheduleGenerator scheduleGenerator) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
+        this.jourFerieRepository = jourFerieRepository;
+        this.scheduleGenerator = scheduleGenerator;
     }
 
     @Transactional
@@ -68,8 +73,7 @@ public class AlternantProfileService {
 
         profile = profileRepository.save(profile);
 
-        List<AlternanceSchedule> schedule = generateSchedule(profile);
-        scheduleRepository.saveAll(schedule);
+        List<AlternanceSchedule> schedule = buildAndSaveSchedule(profile);
 
         return AlternantProfileResponse.from(profile, schedule.size());
     }
@@ -115,56 +119,19 @@ public class AlternantProfileService {
 
         // Recalcul complet du calendrier après modification du profil
         scheduleRepository.deleteByProfileId(profile.getId());
-        List<AlternanceSchedule> schedule = generateSchedule(profile);
-        scheduleRepository.saveAll(schedule);
+        List<AlternanceSchedule> schedule = buildAndSaveSchedule(profile);
 
         return AlternantProfileResponse.from(profile, schedule.size());
     }
 
-    // Génère 52 semaines de calendrier à partir de la date de début du profil.
-    // Chaque entrée représente un lundi — le label 'A' ou 'B' dépend du rythme.
-    private List<AlternanceSchedule> generateSchedule(AlternantProfile profile) {
-        List<AlternanceSchedule> schedules = new ArrayList<>();
-
-        // On part toujours d'un lundi
-        LocalDate firstMonday = getFirstMonday(profile.getDateDebut());
-
-        for (int i = 0; i < 52; i++) {
-            LocalDate semaine = firstMonday.plusWeeks(i);
-
-            // On s'arrête si on dépasse la date de fin du contrat
-            if (semaine.isAfter(profile.getDateFin())) break;
-
-            schedules.add(AlternanceSchedule.builder()
-                    .profile(profile)
-                    .semaine(semaine)
-                    .label(getLabelForWeek(i, profile.getRythme()))
-                    .isOverridden(false)
-                    .build());
-        }
-
-        return schedules;
-    }
-
-    // Retourne le lundi de la semaine contenant la date donnée,
-    // ou la date elle-même si c'est déjà un lundi.
-    private LocalDate getFirstMonday(LocalDate date) {
-        if (date.getDayOfWeek() == DayOfWeek.MONDAY) return date;
-        return date.with(TemporalAdjusters.previous(DayOfWeek.MONDAY));
-    }
-
-    // Détermine le label A ou B d'une semaine selon le rythme d'alternance.
-    // L'index commence à 0 pour la première semaine du contrat.
-    private String getLabelForWeek(int weekIndex, RythmeAlternance rythme) {
-        return switch (rythme) {
-            // 1 semaine école, 1 semaine entreprise en alternant
-            case SEMAINE_1_1 -> weekIndex % 2 == 0 ? "A" : "B";
-            // 3 semaines entreprise + 1 semaine école
-            case SEMAINE_3_1 -> weekIndex % 4 == 3 ? "A" : "B";
-            // 4 semaines école + 4 semaines entreprise (approximation mensuelle)
-            case MOIS_1_1 -> weekIndex % 8 < 4 ? "A" : "B";
-            // Rythme non standard : on applique le pattern 1/1 par défaut
-            case AUTRE -> weekIndex % 2 == 0 ? "A" : "B";
-        };
+    // Charge les jours fériés FR sur la période du profil, délègue la génération
+    // à ScheduleGenerator, puis persiste toutes les semaines en base.
+    private List<AlternanceSchedule> buildAndSaveSchedule(AlternantProfile profile) {
+        Set<JourFerie> joursFeries = jourFerieRepository.findByPaysAndDateJourBetween(
+                "FR", profile.getDateDebut(), profile.getDateFin()
+        );
+        List<AlternanceSchedule> schedule = scheduleGenerator.generateSchedule(profile, joursFeries);
+        scheduleRepository.saveAll(schedule);
+        return schedule;
     }
 }

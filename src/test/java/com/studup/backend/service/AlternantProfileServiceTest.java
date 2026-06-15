@@ -1,5 +1,6 @@
 package com.studup.backend.service;
 
+import com.studup.backend.algorithm.ScheduleGenerator;
 import com.studup.backend.exception.ProfileAlreadyExistsException;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.request.CreateAlternantProfileRequest;
@@ -11,6 +12,7 @@ import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.JourFerieRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,17 +20,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +42,10 @@ class AlternantProfileServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private AlternantProfileRepository profileRepository;
     @Mock private AlternanceScheduleRepository scheduleRepository;
+    @Mock private JourFerieRepository jourFerieRepository;
+
+    // @Spy : on utilise la vraie implémentation de ScheduleGenerator (pas de dépendances externes)
+    @Spy private ScheduleGenerator scheduleGenerator = new ScheduleGenerator();
 
     @InjectMocks
     private AlternantProfileService service;
@@ -71,6 +80,8 @@ class AlternantProfileServiceTest {
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
         when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+        when(jourFerieRepository.findByPaysAndDateJourBetween(anyString(), any(), any()))
+                .thenReturn(Set.of());
 
         // Simule le comportement de la BDD : save() retourne le profil avec un ID généré
         when(profileRepository.save(any(AlternantProfile.class))).thenAnswer(invocation -> {
@@ -102,6 +113,8 @@ class AlternantProfileServiceTest {
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
         when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+        when(jourFerieRepository.findByPaysAndDateJourBetween(anyString(), any(), any()))
+                .thenReturn(Set.of());
         when(profileRepository.save(any(AlternantProfile.class))).thenAnswer(invocation -> {
             AlternantProfile p = invocation.getArgument(0);
             p.setId(UUID.randomUUID());
@@ -141,6 +154,8 @@ class AlternantProfileServiceTest {
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
         when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+        when(jourFerieRepository.findByPaysAndDateJourBetween(anyString(), any(), any()))
+                .thenReturn(Set.of());
         when(profileRepository.save(any(AlternantProfile.class))).thenAnswer(invocation -> {
             AlternantProfile p = invocation.getArgument(0);
             p.setId(UUID.randomUUID());

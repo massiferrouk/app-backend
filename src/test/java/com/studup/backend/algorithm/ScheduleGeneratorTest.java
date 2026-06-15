@@ -1,0 +1,242 @@
+package com.studup.backend.algorithm;
+
+import com.studup.backend.model.entity.AlternanceSchedule;
+import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.JourFerie;
+import com.studup.backend.model.enums.RythmeAlternance;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class ScheduleGeneratorTest {
+
+    private ScheduleGenerator generator;
+
+    @BeforeEach
+    void setUp() {
+        generator = new ScheduleGenerator();
+    }
+
+    // Construit un profil de test avec les paramètres donnés
+    private AlternantProfile buildProfile(LocalDate debut, LocalDate fin, RythmeAlternance rythme) {
+        return AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .villeA("Paris")
+                .villeB("Lyon")
+                .ecole("ESIEA")
+                .entreprise("Thales")
+                .dateDebut(debut)
+                .dateFin(fin)
+                .rythme(rythme)
+                .build();
+    }
+
+    // ─── Tests nombre de semaines générées ───────────────────────────────────
+
+    @Test
+    void shouldGenerate52WeeksForFullYear() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules).hasSize(52);
+    }
+
+    @Test
+    void shouldStopBeforeDateFin() {
+        // Contrat court : seulement 4 semaines
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2025, 9, 26),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules).hasSize(4);
+        assertThat(schedules.getLast().getSemaine()).isBeforeOrEqualTo(LocalDate.of(2025, 9, 26));
+    }
+
+    @Test
+    void shouldNeverExceed52Weeks() {
+        // Contrat très long : 3 ans
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2023, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules).hasSizeLessThanOrEqualTo(52);
+    }
+
+    // ─── Tests labels selon le rythme ────────────────────────────────────────
+
+    @Test
+    void shouldAlternateLabelsSemaine11() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        // Semaine 0 = A, semaine 1 = B, semaine 2 = A...
+        assertThat(schedules.get(0).getLabel()).isEqualTo("A");
+        assertThat(schedules.get(1).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(2).getLabel()).isEqualTo("A");
+        assertThat(schedules.get(3).getLabel()).isEqualTo("B");
+    }
+
+    @Test
+    void shouldApplyCorrectPatternSemaine31() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_3_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        // Semaines 0,1,2 = B (entreprise), semaine 3 = A (école)
+        assertThat(schedules.get(0).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(1).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(2).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(3).getLabel()).isEqualTo("A");
+        // Le cycle recommence : semaine 4 = B
+        assertThat(schedules.get(4).getLabel()).isEqualTo("B");
+    }
+
+    @Test
+    void shouldApplyCorrectPatternMois11() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.MOIS_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        // Semaines 0-3 = A (école), semaines 4-7 = B (entreprise)
+        for (int i = 0; i < 4; i++) {
+            assertThat(schedules.get(i).getLabel()).isEqualTo("A");
+        }
+        for (int i = 4; i < 8; i++) {
+            assertThat(schedules.get(i).getLabel()).isEqualTo("B");
+        }
+    }
+
+    // ─── Tests jours fériés ──────────────────────────────────────────────────
+
+    @Test
+    void shouldAnnotateWeekWithHoliday() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        // Le 11 novembre 2025 (Armistice) est un mardi — tombe dans la semaine du lundi 10/11/2025
+        JourFerie armistice = JourFerie.builder()
+                .id(UUID.randomUUID())
+                .dateJour(LocalDate.of(2025, 11, 11))
+                .libelle("Armistice")
+                .pays("FR")
+                .build();
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of(armistice));
+
+        // On trouve la semaine du 10/11/2025 et on vérifie qu'elle est annotée
+        AlternanceSchedule semaineArmistice = schedules.stream()
+                .filter(s -> s.getSemaine().equals(LocalDate.of(2025, 11, 10)))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(semaineArmistice.getOverrideReason()).contains("2025-11-11");
+    }
+
+    @Test
+    void shouldNotAnnotateWeekWithoutHoliday() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        // Sans jours fériés, toutes les overrideReason sont null
+        assertThat(schedules).allSatisfy(s ->
+                assertThat(s.getOverrideReason()).isNull()
+        );
+    }
+
+    // ─── Tests structure des semaines ────────────────────────────────────────
+
+    @Test
+    void shouldAlwaysStartOnMonday() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 3), // mercredi
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        // Toutes les semaines doivent être des lundis
+        assertThat(schedules).allSatisfy(s ->
+                assertThat(s.getSemaine().getDayOfWeek().getValue()).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void shouldSetIsOverriddenToFalse() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules).allSatisfy(s ->
+                assertThat(s.getIsOverridden()).isFalse()
+        );
+    }
+
+    @Test
+    void shouldHandleWeekendHolidayWithoutAnnotation() {
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_1_1
+        );
+
+        // Un jour férié un samedi ne doit pas annoter la semaine (on vérifie lundi-vendredi uniquement)
+        JourFerie ferieWeekend = JourFerie.builder()
+                .id(UUID.randomUUID())
+                .dateJour(LocalDate.of(2025, 11, 8)) // samedi
+                .libelle("Test samedi")
+                .pays("FR")
+                .build();
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of(ferieWeekend));
+
+        // Aucune semaine ne devrait être annotée car le férié est un samedi
+        assertThat(schedules).allSatisfy(s ->
+                assertThat(s.getOverrideReason()).isNull()
+        );
+    }
+}

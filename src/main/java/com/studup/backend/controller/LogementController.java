@@ -1,5 +1,6 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
 import com.studup.backend.service.LogementService;
@@ -47,6 +48,17 @@ public class LogementController {
             @PathVariable UUID id) {
 
         LogementResponse response = logementService.publishLogement(userDetails.getUsername(), id);
+        return ResponseEntity.ok(response);
+    }
+
+    // Associe le logement à VILLE_A ou VILLE_B du profil alternant (ownership check dans le service)
+    @PatchMapping("/{id}/ville")
+    public ResponseEntity<LogementResponse> associerVille(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody AssocierVilleRequest request) {
+
+        LogementResponse response = logementService.associerVille(userDetails.getUsername(), id, request);
         return ResponseEntity.ok(response);
     }
 

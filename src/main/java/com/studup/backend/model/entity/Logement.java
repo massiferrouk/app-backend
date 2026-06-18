@@ -2,6 +2,7 @@ package com.studup.backend.model.entity;
 
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
+import com.studup.backend.model.enums.VilleAssociee;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -78,6 +79,11 @@ public class Logement {
 
     @Column(name = "is_meuble", nullable = false)
     private Boolean isMeuble;
+
+    // Nullable : renseigné uniquement quand l'alternant associe son logement à une de ses villes
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ville_associee", columnDefinition = "ville_associee")
+    private VilleAssociee villeAssociee;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

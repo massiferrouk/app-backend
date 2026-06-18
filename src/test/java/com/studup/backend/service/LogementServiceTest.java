@@ -2,14 +2,18 @@ package com.studup.backend.service;
 
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
+import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.PhotoLogement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.UserRole;
+import com.studup.backend.model.enums.VilleAssociee;
+import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.PhotoLogementRepository;
 import com.studup.backend.repository.UserRepository;
@@ -39,6 +43,7 @@ class LogementServiceTest {
     @Mock private LogementRepository logementRepository;
     @Mock private PhotoLogementRepository photoRepository;
     @Mock private UserRepository userRepository;
+    @Mock private AlternantProfileRepository alternantProfileRepository;
     @Mock private MinioService minioService;
     @Mock private GeocodingService geocodingService;
 
@@ -227,5 +232,98 @@ class LogementServiceTest {
 
         assertThatThrownBy(() -> logementService.publishLogement("pierre@studup.fr", UUID.randomUUID()))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ─── Association ville ────────────────────────────────────────────────────
+
+    @Test
+    void shouldAssociateLogementToVilleA() {
+        AlternantProfile profile = AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .user(fakeOwner)
+                .villeA("Paris")
+                .villeB("Lyon")
+                .build();
+
+        // Le logement est à Paris → correspond à VILLE_A
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.of(profile));
+        when(logementRepository.findByOwnerIdAndVilleAssociee(fakeOwner.getId(), VilleAssociee.VILLE_A))
+                .thenReturn(Optional.empty());
+        when(logementRepository.save(any(Logement.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(any())).thenReturn(List.of());
+
+        LogementResponse response = logementService.associerVille(
+                "pierre@studup.fr", fakeLogement.getId(),
+                new AssocierVilleRequest(VilleAssociee.VILLE_A));
+
+        assertThat(response.villeAssociee()).isEqualTo(VilleAssociee.VILLE_A);
+    }
+
+    @Test
+    void shouldRejectWhenVilleMismatch() {
+        AlternantProfile profile = AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .user(fakeOwner)
+                .villeA("Lyon")   // VILLE_A = Lyon
+                .villeB("Paris")
+                .build();
+
+        // Le logement est à Paris mais l'alternant demande VILLE_A (Lyon) → erreur
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> logementService.associerVille(
+                "pierre@studup.fr", fakeLogement.getId(),
+                new AssocierVilleRequest(VilleAssociee.VILLE_A)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ne correspond pas");
+    }
+
+    @Test
+    void shouldRejectWhenVilleAlreadyAssigned() {
+        AlternantProfile profile = AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .user(fakeOwner)
+                .villeA("Paris")
+                .villeB("Lyon")
+                .build();
+
+        // Un autre logement est déjà associé à VILLE_A pour cet owner
+        Logement autreLogement = Logement.builder()
+                .id(UUID.randomUUID())
+                .owner(fakeOwner)
+                .ville("Paris")
+                .villeAssociee(VilleAssociee.VILLE_A)
+                .statut(LogementStatut.ACTIF)
+                .isVerified(false)
+                .isMeuble(true)
+                .build();
+
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.of(profile));
+        when(logementRepository.findByOwnerIdAndVilleAssociee(fakeOwner.getId(), VilleAssociee.VILLE_A))
+                .thenReturn(Optional.of(autreLogement));
+
+        assertThatThrownBy(() -> logementService.associerVille(
+                "pierre@studup.fr", fakeLogement.getId(),
+                new AssocierVilleRequest(VilleAssociee.VILLE_A)))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+    }
+
+    @Test
+    void shouldRejectWhenNoAlternantProfile() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> logementService.associerVille(
+                "pierre@studup.fr", fakeLogement.getId(),
+                new AssocierVilleRequest(VilleAssociee.VILLE_A)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Profil alternant");
     }
 }

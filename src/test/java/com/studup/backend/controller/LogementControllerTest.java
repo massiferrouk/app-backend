@@ -3,10 +3,12 @@ package com.studup.backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
+import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
+import com.studup.backend.model.enums.VilleAssociee;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.LogementService;
@@ -69,6 +71,7 @@ class LogementControllerTest {
                 LogementStatut.BROUILLON,
                 false,
                 true,
+                null,
                 List.of(),
                 OffsetDateTime.now()
         );
@@ -179,7 +182,7 @@ class LogementControllerTest {
                 id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
-                LogementStatut.ACTIF, false, true, List.of(), OffsetDateTime.now()
+                LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now()
         );
 
         when(logementService.publishLogement(eq("pierre@studup.fr"), eq(id))).thenReturn(published);
@@ -198,5 +201,41 @@ class LogementControllerTest {
 
         mockMvc.perform(put("/api/v1/logements/{id}/publish", id).with(csrf()))
                 .andExpect(status().isForbidden());
+    }
+
+    // ─── PATCH /api/v1/logements/{id}/ville ──────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "pierre@studup.fr")
+    void shouldReturn200WhenAssocierVilleSucceeds() throws Exception {
+        UUID id = UUID.randomUUID();
+        LogementResponse associated = new LogementResponse(
+                id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
+                null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
+                new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
+                LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now()
+        );
+
+        when(logementService.associerVille(eq("pierre@studup.fr"), eq(id), any()))
+                .thenReturn(associated);
+
+        mockMvc.perform(patch("/api/v1/logements/{id}/ville", id)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"villeAssociee\":\"VILLE_A\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.villeAssociee").value("VILLE_A"));
+    }
+
+    @Test
+    @WithMockUser(username = "pierre@studup.fr")
+    void shouldReturn400WhenVilleAssocieeIsMissing() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(patch("/api/v1/logements/{id}/ville", id)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"villeAssociee\":null}"))
+                .andExpect(status().isBadRequest());
     }
 }

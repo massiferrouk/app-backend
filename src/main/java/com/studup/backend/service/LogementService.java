@@ -2,12 +2,16 @@ package com.studup.backend.service;
 
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
+import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.PhotoLogement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.LogementStatut;
+import com.studup.backend.model.enums.VilleAssociee;
+import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.PhotoLogementRepository;
 import com.studup.backend.repository.UserRepository;
@@ -36,17 +40,20 @@ public class LogementService {
     private final LogementRepository logementRepository;
     private final PhotoLogementRepository photoRepository;
     private final UserRepository userRepository;
+    private final AlternantProfileRepository alternantProfileRepository;
     private final MinioService minioService;
     private final GeocodingService geocodingService;
 
     public LogementService(LogementRepository logementRepository,
                            PhotoLogementRepository photoRepository,
                            UserRepository userRepository,
+                           AlternantProfileRepository alternantProfileRepository,
                            MinioService minioService,
                            GeocodingService geocodingService) {
         this.logementRepository = logementRepository;
         this.photoRepository = photoRepository;
         this.userRepository = userRepository;
+        this.alternantProfileRepository = alternantProfileRepository;
         this.minioService = minioService;
         this.geocodingService = geocodingService;
     }
@@ -157,6 +164,49 @@ public class LogementService {
     public LogementResponse getLogement(UUID logementId) {
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
+
+        List<String> photoUrls = getPhotoUrls(logementId);
+        return LogementResponse.from(logement, photoUrls);
+    }
+
+    @Transactional
+    public LogementResponse associerVille(String email, UUID logementId, AssocierVilleRequest request) {
+        User owner = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        Logement logement = logementRepository.findById(logementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
+
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
+
+        // Récupère le profil alternant pour vérifier les villes autorisées
+        AlternantProfile profile = alternantProfileRepository.findByUserId(owner.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable — créez votre profil avant d'associer un logement"));
+
+        // Vérifie que la ville du logement correspond à la ville demandée dans le profil
+        String villeAttendue = request.villeAssociee() == VilleAssociee.VILLE_A
+                ? profile.getVilleA()
+                : profile.getVilleB();
+
+        if (!logement.getVille().equalsIgnoreCase(villeAttendue)) {
+            throw new IllegalArgumentException(
+                    "La ville du logement (" + logement.getVille() + ") ne correspond pas à "
+                    + request.villeAssociee() + " (" + villeAttendue + ") dans votre profil");
+        }
+
+        // Vérifie qu'il n'existe pas déjà un logement associé à cette ville pour cet alternant
+        logementRepository.findByOwnerIdAndVilleAssociee(owner.getId(), request.villeAssociee())
+                .filter(existant -> !existant.getId().equals(logementId))
+                .ifPresent(existant -> {
+                    throw new org.springframework.dao.DuplicateKeyException(
+                            "Vous avez déjà un logement associé à " + request.villeAssociee());
+                });
+
+        logement.setVilleAssociee(request.villeAssociee());
+        logement = logementRepository.save(logement);
 
         List<String> photoUrls = getPhotoUrls(logementId);
         return LogementResponse.from(logement, photoUrls);

@@ -3,6 +3,7 @@ package com.studup.backend.model.dto.response;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
+import com.studup.backend.model.enums.VilleAssociee;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -27,6 +28,7 @@ public record LogementResponse(
         LogementStatut statut,
         Boolean isVerified,
         Boolean isMeuble,
+        VilleAssociee villeAssociee,
         List<String> photoUrls,
         OffsetDateTime createdAt
 ) {
@@ -49,6 +51,7 @@ public record LogementResponse(
                 logement.getStatut(),
                 logement.getIsVerified(),
                 logement.getIsMeuble(),
+                logement.getVilleAssociee(),
                 photoUrls,
                 logement.getCreatedAt()
         );

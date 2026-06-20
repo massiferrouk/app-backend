@@ -2,6 +2,7 @@ package com.studup.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studup.backend.exception.ResourceNotFoundException;
+import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
@@ -202,8 +203,10 @@ class LogementControllerTest {
     @WithMockUser(username = "autre@studup.fr")
     void shouldReturn403WhenPublishByNonOwner() throws Exception {
         UUID id = UUID.randomUUID();
-        // @PreAuthorize bloque → securityService retourne false → 403 sans appeler le service
-        when(securityService.isLogementOwner(eq(id), any())).thenReturn(false);
+        // @PreAuthorize passe (mock retourne true), mais le service détecte que ce n'est pas l'owner
+        when(securityService.isLogementOwner(eq(id), any())).thenReturn(true);
+        when(logementService.publishLogement(eq("autre@studup.fr"), eq(id)))
+                .thenThrow(new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement"));
 
         mockMvc.perform(put("/api/v1/logements/{id}/publish", id).with(csrf()))
                 .andExpect(status().isForbidden());

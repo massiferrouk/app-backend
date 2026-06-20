@@ -1,6 +1,7 @@
 package com.studup.backend.service;
 
 import com.studup.backend.exception.ResourceNotFoundException;
+import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
@@ -98,6 +99,10 @@ public class LogementService {
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
 
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
+
         logement.setStatut(LogementStatut.ACTIF);
         logement = logementRepository.save(logement);
 
@@ -112,6 +117,10 @@ public class LogementService {
 
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
+
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
 
         int existingCount = photoRepository.countByLogementId(logementId);
         if (existingCount + files.size() > MAX_PHOTOS) {

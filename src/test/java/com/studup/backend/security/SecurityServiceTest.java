@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -97,9 +98,9 @@ class SecurityServiceTest {
     @Test
     void shouldReturnTrueWhenUserIsAdmin() {
         // Un admin bypass l'ownership check — peut modifier n'importe quel logement
-        when(authentication.getAuthorities()).thenReturn(
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-        );
+        // doReturn contourne le problème de type générique avec Collection<? extends GrantedAuthority>
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                .when(authentication).getAuthorities();
 
         boolean result = securityService.isLogementOwner(logement.getId(), authentication);
 

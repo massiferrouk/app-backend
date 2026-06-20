@@ -39,14 +39,17 @@ public class SecurityConfig {
             // CORS géré par WebMvcConfig
             .cors(cors -> {})
             .authorizeHttpRequests(auth -> auth
-                // Endpoints publics : auth + health checks
+                // Endpoints publics : auth + probes Railway
                 .requestMatchers(
                     "/api/v1/auth/register",
                     "/api/v1/auth/confirm",
                     "/api/v1/auth/login",
                     "/api/v1/auth/refresh",
-                    "/actuator/health/**"
+                    "/actuator/health/liveness",
+                    "/actuator/health/readiness"
                 ).permitAll()
+                // Détail santé composants + métriques : ADMIN uniquement
+                .requestMatchers("/actuator/**").hasRole("ADMIN")
                 // Tout le reste nécessite un token JWT valide
                 .anyRequest().authenticated()
             )

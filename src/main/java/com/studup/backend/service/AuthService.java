@@ -11,6 +11,7 @@ import com.studup.backend.model.entity.RefreshToken;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
+import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Date;
 import java.util.HexFormat;
 
 @Service
@@ -38,6 +42,7 @@ public class AuthService {
     private final EmailConfirmationService emailConfirmationService;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
+    private final JwtBlacklistService jwtBlacklistService;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
@@ -47,13 +52,15 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        EmailConfirmationService emailConfirmationService,
                        JwtUtil jwtUtil,
-                       AuthenticationManager authenticationManager) {
+                       AuthenticationManager authenticationManager,
+                       JwtBlacklistService jwtBlacklistService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailConfirmationService = emailConfirmationService;
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
+        this.jwtBlacklistService = jwtBlacklistService;
     }
 
     // ─── Inscription ──────────────────────────────────────────────────────────
@@ -149,15 +156,24 @@ public class AuthService {
     // ─── Déconnexion ──────────────────────────────────────────────────────────
 
     @Transactional
-    public void logout(RefreshRequest request) {
-        String tokenHash = hashToken(request.refreshToken());
+    public void logout(String accessToken, RefreshRequest request) {
+        // 1. Blacklister l'access token dans Redis avec TTL = temps restant avant expiration
+        if (accessToken != null && jwtUtil.isTokenValid(accessToken)) {
+            String jti = jwtUtil.extractJti(accessToken);
+            Date expiration = jwtUtil.extractExpiration(accessToken);
+            Duration ttl = Duration.between(Instant.now(), expiration.toInstant());
+            if (!ttl.isNegative()) {
+                jwtBlacklistService.blacklist(jti, ttl);
+            }
+        }
 
+        // 2. Révoquer le refresh token en BDD
+        String tokenHash = hashToken(request.refreshToken());
         refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(token -> {
             token.setIsRevoked(true);
             refreshTokenRepository.save(token);
         });
 
-        // On ne log pas d'erreur si le token n'existe pas — le logout doit toujours réussir
         log.info("User logged out");
     }
 

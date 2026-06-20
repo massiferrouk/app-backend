@@ -2,7 +2,6 @@ package com.studup.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studup.backend.exception.ResourceNotFoundException;
-import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
@@ -11,6 +10,7 @@ import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.VilleAssociee;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.security.SecurityService;
 import com.studup.backend.service.LogementService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +50,10 @@ class LogementControllerTest {
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;
+
+    // Requis par @PreAuthorize("@securityService.isLogementOwner(...)")
+    @MockitoBean
+    private SecurityService securityService;
 
     // Logement de référence réutilisé dans les tests
     private LogementResponse fakeResponse() {
@@ -185,6 +189,8 @@ class LogementControllerTest {
                 LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now()
         );
 
+        // @PreAuthorize passe → securityService retourne true
+        when(securityService.isLogementOwner(eq(id), any())).thenReturn(true);
         when(logementService.publishLogement(eq("pierre@studup.fr"), eq(id))).thenReturn(published);
 
         mockMvc.perform(put("/api/v1/logements/{id}/publish", id).with(csrf()))
@@ -196,8 +202,8 @@ class LogementControllerTest {
     @WithMockUser(username = "autre@studup.fr")
     void shouldReturn403WhenPublishByNonOwner() throws Exception {
         UUID id = UUID.randomUUID();
-        when(logementService.publishLogement(eq("autre@studup.fr"), eq(id)))
-                .thenThrow(new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement"));
+        // @PreAuthorize bloque → securityService retourne false → 403 sans appeler le service
+        when(securityService.isLogementOwner(eq(id), any())).thenReturn(false);
 
         mockMvc.perform(put("/api/v1/logements/{id}/publish", id).with(csrf()))
                 .andExpect(status().isForbidden());
@@ -216,6 +222,8 @@ class LogementControllerTest {
                 LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now()
         );
 
+        // @PreAuthorize passe → securityService retourne true
+        when(securityService.isLogementOwner(eq(id), any())).thenReturn(true);
         when(logementService.associerVille(eq("pierre@studup.fr"), eq(id), any()))
                 .thenReturn(associated);
 

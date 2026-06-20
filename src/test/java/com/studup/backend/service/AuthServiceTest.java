@@ -12,6 +12,7 @@ import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
+import com.studup.backend.config.StudUpMetrics;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class AuthServiceTest {
 
     @Mock
     private JwtBlacklistService jwtBlacklistService;
+
+    @Mock
+    private StudUpMetrics studUpMetrics;
 
     @InjectMocks
     private AuthService authService;

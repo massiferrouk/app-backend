@@ -11,6 +11,7 @@ import com.studup.backend.model.entity.RefreshToken;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
+import com.studup.backend.config.StudUpMetrics;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
     private final JwtBlacklistService jwtBlacklistService;
+    private final StudUpMetrics metrics;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
@@ -53,7 +55,8 @@ public class AuthService {
                        EmailConfirmationService emailConfirmationService,
                        JwtUtil jwtUtil,
                        AuthenticationManager authenticationManager,
-                       JwtBlacklistService jwtBlacklistService) {
+                       JwtBlacklistService jwtBlacklistService,
+                       StudUpMetrics metrics) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -61,6 +64,7 @@ public class AuthService {
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
         this.jwtBlacklistService = jwtBlacklistService;
+        this.metrics = metrics;
     }
 
     // ─── Inscription ──────────────────────────────────────────────────────────
@@ -84,6 +88,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
         emailConfirmationService.sendConfirmationEmail(savedUser);
 
+        metrics.incrementInscriptionsDaily();
         log.info("New user registered: userId={}", savedUser.getId());
         return UserResponse.from(savedUser);
     }

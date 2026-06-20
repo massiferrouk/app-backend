@@ -40,9 +40,14 @@ public class AuthController {
     }
 
     // POST /api/v1/auth/logout → 204 No Content
+    // L'access token est extrait du header Authorization pour être blacklisté dans Redis
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshRequest request) {
-        authService.logout(request);
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @Valid @RequestBody RefreshRequest request) {
+        String accessToken = (authHeader != null && authHeader.startsWith("Bearer "))
+                ? authHeader.substring(7) : null;
+        authService.logout(accessToken, request);
         return ResponseEntity.noContent().build();
     }
 }

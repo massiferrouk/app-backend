@@ -1,6 +1,7 @@
 package com.studup.backend.exception;
 
 import com.studup.backend.security.CustomUserDetailsService;
+import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
@@ -45,6 +46,9 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean
     private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private JwtBlacklistService jwtBlacklistService;
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;

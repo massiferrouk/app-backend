@@ -22,10 +22,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final CustomUserDetailsService userDetailsService;
+    private final JwtBlacklistService jwtBlacklistService;
 
-    public JwtAuthFilter(JwtUtil jwtUtil, CustomUserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtUtil jwtUtil,
+                         CustomUserDetailsService userDetailsService,
+                         JwtBlacklistService jwtBlacklistService) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+        this.jwtBlacklistService = jwtBlacklistService;
     }
 
     @Override
@@ -48,8 +52,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         // Étape 2 : extraire le token (tout ce qui suit "Bearer ")
         String token = authHeader.substring(7);
 
-        // Étape 3 : valider le token et authentifier seulement si pas déjà authentifié
-        if (jwtUtil.isTokenValid(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
+        // Étape 3 : valider le token — signature valide ET non révoqué ET pas déjà authentifié
+        String jti = jwtUtil.extractJti(token);
+        if (jwtUtil.isTokenValid(token)
+                && !jwtBlacklistService.isBlacklisted(jti)
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             // Charger l'utilisateur depuis la BDD à partir de son userId dans le token
             String email = jwtUtil.extractClaims(token).get("email", String.class);

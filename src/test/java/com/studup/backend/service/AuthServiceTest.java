@@ -12,6 +12,7 @@ import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
+import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,7 +24,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -53,6 +57,9 @@ class AuthServiceTest {
 
     @Mock
     private AuthenticationManager authenticationManager;
+
+    @Mock
+    private JwtBlacklistService jwtBlacklistService;
 
     @InjectMocks
     private AuthService authService;
@@ -205,7 +212,7 @@ class AuthServiceTest {
     // ─── Tests déconnexion ────────────────────────────────────────────────────
 
     @Test
-    void shouldLogout() {
+    void shouldLogoutAndRevokeRefreshToken() {
         RefreshRequest request = new RefreshRequest("valid-refresh-token");
 
         RefreshToken storedToken = RefreshToken.builder()
@@ -218,11 +225,29 @@ class AuthServiceTest {
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(storedToken));
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(null);
 
-        authService.logout(request);
+        // null = pas d'access token envoyé, le logout fonctionne quand même
+        authService.logout(null, request);
 
-        // Vérifie que le token a bien été révoqué
         assertThat(storedToken.getIsRevoked()).isTrue();
         verify(refreshTokenRepository).save(storedToken);
+    }
+
+    @Test
+    void shouldBlacklistAccessTokenOnLogout() {
+        RefreshRequest request = new RefreshRequest("valid-refresh-token");
+        String fakeAccessToken = "header.payload.signature";
+        String jti = "test-jti-123";
+        Date expiration = new Date(System.currentTimeMillis() + 600_000); // expire dans 10 min
+
+        when(jwtUtil.isTokenValid(fakeAccessToken)).thenReturn(true);
+        when(jwtUtil.extractJti(fakeAccessToken)).thenReturn(jti);
+        when(jwtUtil.extractExpiration(fakeAccessToken)).thenReturn(expiration);
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+
+        authService.logout(fakeAccessToken, request);
+
+        // Vérifie que la blacklist Redis a bien été appelée avec le JTI et un TTL positif
+        verify(jwtBlacklistService).blacklist(eq(jti), any(Duration.class));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

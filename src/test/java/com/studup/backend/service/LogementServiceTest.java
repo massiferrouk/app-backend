@@ -46,6 +46,7 @@ class LogementServiceTest {
     @Mock private AlternantProfileRepository alternantProfileRepository;
     @Mock private MinioService minioService;
     @Mock private GeocodingService geocodingService;
+    @Mock private FileValidationService fileValidationService;
 
     @InjectMocks
     private LogementService logementService;
@@ -176,34 +177,37 @@ class LogementServiceTest {
 
     @Test
     void shouldRejectOversizedPhoto() {
-        // Fichier de 3 Mo — dépasse la limite de 2 Mo
-        byte[] bigContent = new byte[3 * 1024 * 1024];
         MockMultipartFile bigFile = new MockMultipartFile(
-                "file", "photo.jpg", "image/jpeg", bigContent
+                "file", "photo.jpg", "image/jpeg", new byte[100]
         );
 
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
         when(photoRepository.countByLogementId(fakeLogement.getId())).thenReturn(0);
+        // FileValidationService lève l'exception — c'est son rôle, testé dans FileValidationServiceTest
+        doThrow(new IllegalArgumentException("Le fichier dépasse la taille maximale autorisée de 5 Mo"))
+                .when(fileValidationService).validateImage(bigFile);
 
         assertThatThrownBy(() -> logementService.addPhotos(
                 "pierre@studup.fr", fakeLogement.getId(), List.of(bigFile)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("2 Mo");
+                .hasMessageContaining("5 Mo");
     }
 
     @Test
     void shouldRejectInvalidMimeType() {
-        MockMultipartFile pdfFile = new MockMultipartFile(
-                "file", "document.pdf", "application/pdf", new byte[100]
+        MockMultipartFile exeFile = new MockMultipartFile(
+                "file", "virus.jpg", "image/jpeg", new byte[100]
         );
 
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
         when(photoRepository.countByLogementId(fakeLogement.getId())).thenReturn(0);
+        doThrow(new IllegalArgumentException("Format non supporté"))
+                .when(fileValidationService).validateImage(exeFile);
 
         assertThatThrownBy(() -> logementService.addPhotos(
-                "pierre@studup.fr", fakeLogement.getId(), List.of(pdfFile)))
+                "pierre@studup.fr", fakeLogement.getId(), List.of(exeFile)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Format non supporté");
     }

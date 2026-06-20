@@ -99,7 +99,6 @@ public class LogementService {
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
 
-        // Ownership check : seul le propriétaire peut publier son logement
         if (!logement.getOwner().getId().equals(owner.getId())) {
             throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
         }
@@ -176,10 +175,6 @@ public class LogementService {
 
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
-
-        if (!logement.getOwner().getId().equals(owner.getId())) {
-            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
-        }
 
         // Récupère le profil alternant pour vérifier les villes autorisées
         AlternantProfile profile = alternantProfileRepository.findByUserId(owner.getId())

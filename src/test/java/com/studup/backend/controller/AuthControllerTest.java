@@ -10,6 +10,7 @@ import com.studup.backend.model.dto.response.AuthResponse;
 import com.studup.backend.model.dto.response.UserResponse;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.security.CustomUserDetailsService;
+import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private JwtBlacklistService jwtBlacklistService;
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;

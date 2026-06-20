@@ -10,6 +10,7 @@ import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.VilleAssociee;
 import com.studup.backend.security.CustomUserDetailsService;
+import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.security.SecurityService;
 import com.studup.backend.service.LogementService;
@@ -51,6 +52,10 @@ class LogementControllerTest {
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;
+
+    // Requis par JwtAuthFilter (dépend de JwtBlacklistService depuis APP-52)
+    @MockitoBean
+    private JwtBlacklistService jwtBlacklistService;
 
     // Requis par @PreAuthorize("@securityService.isLogementOwner(...)")
     @MockitoBean

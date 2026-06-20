@@ -7,6 +7,7 @@ import com.studup.backend.service.LogementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -41,7 +42,8 @@ public class LogementController {
         return ResponseEntity.ok(logementService.getLogement(id));
     }
 
-    // Passe le logement en statut ACTIF (ownership check dans le service)
+    // Passe le logement en statut ACTIF — vérifie ownership avant d'entrer dans la méthode
+    @PreAuthorize("@securityService.isLogementOwner(#id, authentication)")
     @PutMapping("/{id}/publish")
     public ResponseEntity<LogementResponse> publishLogement(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -51,7 +53,8 @@ public class LogementController {
         return ResponseEntity.ok(response);
     }
 
-    // Associe le logement à VILLE_A ou VILLE_B du profil alternant (ownership check dans le service)
+    // Associe le logement à VILLE_A ou VILLE_B — vérifie ownership avant d'entrer dans la méthode
+    @PreAuthorize("@securityService.isLogementOwner(#id, authentication)")
     @PatchMapping("/{id}/ville")
     public ResponseEntity<LogementResponse> associerVille(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -62,7 +65,8 @@ public class LogementController {
         return ResponseEntity.ok(response);
     }
 
-    // Upload de 1 à 10 photos sur un logement
+    // Upload de 1 à 10 photos — vérifie ownership avant d'entrer dans la méthode
+    @PreAuthorize("@securityService.isLogementOwner(#id, authentication)")
     @PostMapping("/{id}/photos")
     public ResponseEntity<List<String>> addPhotos(
             @AuthenticationPrincipal UserDetails userDetails,

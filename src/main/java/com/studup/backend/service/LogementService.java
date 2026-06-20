@@ -25,17 +25,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class LogementService {
 
-    private static final long MAX_PHOTO_SIZE_BYTES = 2L * 1024 * 1024; // 2 Mo
     private static final int MAX_PHOTOS = 10;
-    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
-            "image/jpeg", "image/png", "image/webp"
-    );
 
     private final LogementRepository logementRepository;
     private final PhotoLogementRepository photoRepository;
@@ -43,19 +38,22 @@ public class LogementService {
     private final AlternantProfileRepository alternantProfileRepository;
     private final MinioService minioService;
     private final GeocodingService geocodingService;
+    private final FileValidationService fileValidationService;
 
     public LogementService(LogementRepository logementRepository,
                            PhotoLogementRepository photoRepository,
                            UserRepository userRepository,
                            AlternantProfileRepository alternantProfileRepository,
                            MinioService minioService,
-                           GeocodingService geocodingService) {
+                           GeocodingService geocodingService,
+                           FileValidationService fileValidationService) {
         this.logementRepository = logementRepository;
         this.photoRepository = photoRepository;
         this.userRepository = userRepository;
         this.alternantProfileRepository = alternantProfileRepository;
         this.minioService = minioService;
         this.geocodingService = geocodingService;
+        this.fileValidationService = fileValidationService;
     }
 
     @Transactional
@@ -134,7 +132,8 @@ public class LogementService {
         int ordre = existingCount;
 
         for (MultipartFile file : files) {
-            validatePhoto(file);
+            // Validation par magic bytes — ignore le Content-Type déclaré par le client
+            fileValidationService.validateImage(file);
 
             String fileKey = "logements/" + UUID.randomUUID() + getExtension(file.getContentType());
             byte[] compressed = compressImage(file);
@@ -211,19 +210,6 @@ public class LogementService {
         return photoRepository.findByLogementIdOrderByOrdreAsc(logementId).stream()
                 .map(p -> minioService.generatePresignedUrl(p.getFileKey()))
                 .toList();
-    }
-
-    private void validatePhoto(MultipartFile file) {
-        if (file.getSize() > MAX_PHOTO_SIZE_BYTES) {
-            throw new IllegalArgumentException(
-                    "La photo dépasse la taille maximale autorisée de 2 Mo : " + file.getOriginalFilename()
-            );
-        }
-        if (!ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
-            throw new IllegalArgumentException(
-                    "Format non supporté : " + file.getContentType() + ". Formats acceptés : JPEG, PNG, WEBP"
-            );
-        }
     }
 
     // Compresse l'image à 80% de qualité via Thumbnailator

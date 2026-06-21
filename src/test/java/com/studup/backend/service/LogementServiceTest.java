@@ -4,7 +4,9 @@ import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
+import com.studup.backend.model.dto.request.LogementSearchRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.PhotoLogement;
@@ -24,6 +26,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -329,5 +335,69 @@ class LogementServiceTest {
                 new AssocierVilleRequest(VilleAssociee.VILLE_A)))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Profil alternant");
+    }
+
+    // ─── Recherche ────────────────────────────────────────────────────────────
+
+    @Test
+    void shouldFilterByVilleAndLoyer() {
+        // Le logement de référence est à Paris avec loyer 800€
+        fakeLogement.setStatut(LogementStatut.ACTIF);
+
+        when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(fakeLogement)));
+
+        LogementSearchRequest request = new LogementSearchRequest(
+                "Paris", new BigDecimal("900"), null, null, null, null, 0);
+
+        PageResponse<LogementResponse> result = logementService.search(request);
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).ville()).isEqualTo("Paris");
+        assertThat(result.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldReturnEmptyPageWhenNoResults() {
+        when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        LogementSearchRequest request = new LogementSearchRequest(
+                "Marseille", null, null, null, null, null, 0);
+
+        PageResponse<LogementResponse> result = logementService.search(request);
+
+        assertThat(result.content()).isEmpty();
+        assertThat(result.totalElements()).isEqualTo(0);
+        assertThat(result.hasNext()).isFalse();
+    }
+
+    @Test
+    void shouldSearchWithNoFilters() {
+        fakeLogement.setStatut(LogementStatut.ACTIF);
+
+        when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(fakeLogement)));
+
+        // Aucun filtre — on cherche tous les logements actifs
+        LogementSearchRequest request = new LogementSearchRequest(
+                null, null, null, null, null, null, 0);
+
+        PageResponse<LogementResponse> result = logementService.search(request);
+
+        assertThat(result.content()).hasSize(1);
+    }
+
+    @Test
+    void shouldRespectPageNumber() {
+        when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        LogementSearchRequest request = new LogementSearchRequest(
+                null, null, null, null, null, null, 2);
+
+        PageResponse<LogementResponse> result = logementService.search(request);
+
+        assertThat(result.page()).isEqualTo(2);
     }
 }

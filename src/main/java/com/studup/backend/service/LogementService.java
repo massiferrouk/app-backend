@@ -4,7 +4,9 @@ import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
+import com.studup.backend.model.dto.request.LogementSearchRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.PhotoLogement;
@@ -13,8 +15,13 @@ import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.VilleAssociee;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
+import com.studup.backend.repository.LogementSpecification;
 import com.studup.backend.repository.PhotoLogementRepository;
 import com.studup.backend.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -233,5 +240,49 @@ public class LogementService {
             case "image/webp" -> ".webp";
             default -> ".jpg";
         };
+    }
+
+    // ─── Recherche ────────────────────────────────────────────────────────────
+
+    public PageResponse<LogementResponse> search(LogementSearchRequest request) {
+        // On commence toujours par filtrer les logements ACTIF uniquement
+        Specification<Logement> spec = LogementSpecification.estActif();
+
+        // On ajoute les filtres optionnels un par un — ceux qui sont null sont ignorés
+        if (request.ville() != null && !request.ville().isBlank()) {
+            spec = spec.and(LogementSpecification.villeEgale(request.ville()));
+        }
+        if (request.loyerMax() != null) {
+            spec = spec.and(LogementSpecification.loyerMaxInferieurOuEgal(request.loyerMax()));
+        }
+        if (request.surfaceMin() != null) {
+            spec = spec.and(LogementSpecification.surfaceMinSuperieurOuEgal(request.surfaceMin()));
+        }
+        if (request.meuble() != null) {
+            spec = spec.and(LogementSpecification.estMeuble(request.meuble()));
+        }
+        if (request.type() != null) {
+            spec = spec.and(LogementSpecification.typeEgal(request.type()));
+        }
+
+        // Tri : prix_asc | prix_desc | surface_desc | pertinence (par défaut = date création desc)
+        Sort sort = switch (request.tri() != null ? request.tri() : "pertinence") {
+            case "prix_asc" -> Sort.by("loyer").ascending();
+            case "prix_desc" -> Sort.by("loyer").descending();
+            case "surface_desc" -> Sort.by("surface").descending();
+            default -> Sort.by("createdAt").descending();
+        };
+
+        int pageNumber = request.page() != null ? request.page() : 0;
+        PageRequest pageable = PageRequest.of(pageNumber, 20, sort);
+        Page<Logement> page = logementRepository.findAll(spec, pageable);
+
+        // Dans la liste de résultats, les photos ne sont pas chargées (perf)
+        // Les URLs signées MinIO sont chargées uniquement sur le détail d'un logement
+        List<LogementResponse> content = page.getContent().stream()
+                .map(l -> LogementResponse.from(l, List.of()))
+                .toList();
+
+        return new PageResponse<>(content, pageNumber, 20, page.getTotalElements(), page.hasNext());
     }
 }

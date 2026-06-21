@@ -6,6 +6,7 @@ import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.VilleAssociee;
@@ -85,6 +86,41 @@ class LogementControllerTest {
                 List.of(),
                 OffsetDateTime.now()
         );
+    }
+
+    // ─── GET /api/v1/logements ────────────────────────────────────────────────
+
+    @Test
+    @WithMockUser
+    void shouldReturn200WithSearchResults() throws Exception {
+        PageResponse<LogementResponse> fakePage = new PageResponse<>(
+                List.of(fakeResponse()), 0, 20, 1L, false);
+
+        when(logementService.search(any())).thenReturn(fakePage);
+
+        mockMvc.perform(get("/api/v1/logements")
+                        .param("ville", "Paris")
+                        .param("loyer_max", "900"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].ville").value("Paris"))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    @WithMockUser
+    void shouldReturn200WithEmptyResultsWhenNothingMatches() throws Exception {
+        PageResponse<LogementResponse> emptyPage = new PageResponse<>(
+                List.of(), 0, 20, 0L, false);
+
+        when(logementService.search(any())).thenReturn(emptyPage);
+
+        mockMvc.perform(get("/api/v1/logements")
+                        .param("ville", "Inconnu"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     // ─── POST /api/v1/logements ───────────────────────────────────────────────

@@ -2,6 +2,7 @@ package com.studup.backend.service;
 
 import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
+import com.studup.backend.algorithm.PartialExchangeOptimizer;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
@@ -39,6 +40,7 @@ class MatchingServiceTest {
     @Mock private AlternanceScheduleRepository scheduleRepository;
     @Mock private UserRepository userRepository;
     @Mock private CompatibilityCalculator calculator;
+    @Mock private PartialExchangeOptimizer partialExchangeOptimizer;
 
     @InjectMocks
     private MatchingService matchingService;

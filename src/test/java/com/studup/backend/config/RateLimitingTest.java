@@ -11,6 +11,7 @@ import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
+import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.LogementService;
 import com.studup.backend.service.ProprietaireProfileService;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class RateLimitingTest {
 
     @MockitoBean
     private LogementService logementService;
+
+    @MockitoBean
+    private DisponibiliteService disponibiliteService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

@@ -81,6 +81,22 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("VALIDATION_ERROR", "Données invalides", request.getRequestURI(), details));
     }
 
+    // Règle métier violée — ex: dateDebut >= dateFin
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex,
+                                                               HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of("INVALID_ARGUMENT", ex.getMessage(), request.getRequestURI()));
+    }
+
+    // Conflit de données — ex: chevauchement de disponibilités
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex,
+                                                            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.of("CONFLICT", ex.getMessage(), request.getRequestURI()));
+    }
+
     // Filet de sécurité : toute exception non gérée ci-dessus
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {

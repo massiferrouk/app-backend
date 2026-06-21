@@ -7,6 +7,7 @@ import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
 import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.LogementService;
+import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.MatchingService;
 import com.studup.backend.service.ProprietaireProfileService;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ class CorsConfigTest {
 
     @MockitoBean
     private MatchingService matchingService;
+
+    @MockitoBean
+    private CalendrierService calendrierService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

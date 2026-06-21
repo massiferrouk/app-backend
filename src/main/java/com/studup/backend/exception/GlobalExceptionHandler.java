@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -79,6 +80,16 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of("VALIDATION_ERROR", "Données invalides", request.getRequestURI(), details));
+    }
+
+    // Paramètre de requête obligatoire manquant — ex: ?user1=... sans user2
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex,
+                                                            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of("MISSING_PARAMETER",
+                        "Paramètre obligatoire manquant : " + ex.getParameterName(),
+                        request.getRequestURI()));
     }
 
     // Règle métier violée — ex: dateDebut >= dateFin

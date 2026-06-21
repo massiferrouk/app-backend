@@ -151,6 +151,38 @@ class LogementServiceTest {
         assertThat(response.statut()).isEqualTo(LogementStatut.BROUILLON);
     }
 
+    // ─── Détail logement ──────────────────────────────────────────────────────
+
+    @Test
+    void shouldReturnLogementDetailWithPhotoUrls() {
+        PhotoLogement photo = PhotoLogement.builder()
+                .id(UUID.randomUUID())
+                .logement(fakeLogement)
+                .fileKey("logements/photo-abc.jpg")
+                .ordre(0)
+                .build();
+
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(fakeLogement.getId())).thenReturn(List.of(photo));
+        when(minioService.generatePresignedUrl("logements/photo-abc.jpg")).thenReturn("https://minio/photo-abc.jpg");
+
+        LogementResponse response = logementService.getLogement(fakeLogement.getId());
+
+        assertThat(response.adresse()).isEqualTo("12 rue de la Paix");
+        assertThat(response.ville()).isEqualTo("Paris");
+        assertThat(response.photoUrls()).hasSize(1);
+        assertThat(response.photoUrls().get(0)).isEqualTo("https://minio/photo-abc.jpg");
+    }
+
+    @Test
+    void shouldThrowWhenLogementDetailNotFound() {
+        when(logementRepository.findById(any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> logementService.getLogement(UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Logement introuvable");
+    }
+
     // ─── Publication ──────────────────────────────────────────────────────────
 
     @Test

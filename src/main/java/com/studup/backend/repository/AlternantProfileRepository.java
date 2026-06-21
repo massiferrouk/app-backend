@@ -2,17 +2,34 @@ package com.studup.backend.repository;
 
 import com.studup.backend.model.entity.AlternantProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface AlternantProfileRepository extends JpaRepository<AlternantProfile, UUID> {
 
-    // Vérifie si un profil existe déjà pour cet utilisateur
     boolean existsByUserId(UUID userId);
 
-    // Récupère le profil d'un utilisateur donné
     Optional<AlternantProfile> findByUserId(UUID userId);
+
+    // Présélection : profils qui ont au moins une ville en commun avec les villes données
+    // Exclut le profil de l'utilisateur connecté lui-même
+    @Query("""
+            SELECT p FROM AlternantProfile p
+            WHERE p.id != :excludeProfileId
+            AND (
+                p.villeA IN (:villeA, :villeB)
+                OR p.villeB IN (:villeA, :villeB)
+            )
+            """)
+    List<AlternantProfile> findCandidatesWithSharedCity(
+            @Param("excludeProfileId") UUID excludeProfileId,
+            @Param("villeA") String villeA,
+            @Param("villeB") String villeB
+    );
 }

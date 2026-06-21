@@ -2,7 +2,10 @@ package com.studup.backend.controller;
 
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
+import com.studup.backend.model.dto.request.LogementSearchRequest;
 import com.studup.backend.model.dto.response.LogementResponse;
+import com.studup.backend.model.dto.response.PageResponse;
+import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.service.LogementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -24,6 +27,21 @@ public class LogementController {
 
     public LogementController(LogementService logementService) {
         this.logementService = logementService;
+    }
+
+    // GET /api/v1/logements?ville=Paris&loyer_max=800&surface_min=20&meuble=true&type=STUDIO&tri=prix_asc&page=0
+    @GetMapping
+    public ResponseEntity<PageResponse<LogementResponse>> search(
+            @RequestParam(required = false) String ville,
+            @RequestParam(name = "loyer_max", required = false) java.math.BigDecimal loyerMax,
+            @RequestParam(name = "surface_min", required = false) java.math.BigDecimal surfaceMin,
+            @RequestParam(required = false) Boolean meuble,
+            @RequestParam(required = false) LogementType type,
+            @RequestParam(required = false) String tri,
+            @RequestParam(defaultValue = "0") Integer page) {
+
+        LogementSearchRequest request = new LogementSearchRequest(ville, loyerMax, surfaceMin, meuble, type, tri, page);
+        return ResponseEntity.ok(logementService.search(request));
     }
 
     // Crée un logement en statut BROUILLON

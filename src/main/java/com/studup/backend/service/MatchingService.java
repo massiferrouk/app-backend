@@ -2,8 +2,11 @@ package com.studup.backend.service;
 
 import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
+import com.studup.backend.algorithm.PartialExchangeOptimizer;
+import com.studup.backend.algorithm.PartialExchangeProposal;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
+import com.studup.backend.model.dto.response.PartialExchangeResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.repository.AlternanceScheduleRepository;
@@ -14,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class MatchingService {
@@ -24,15 +28,18 @@ public class MatchingService {
     private final AlternanceScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
     private final CompatibilityCalculator calculator;
+    private final PartialExchangeOptimizer partialExchangeOptimizer;
 
     public MatchingService(AlternantProfileRepository profileRepository,
                            AlternanceScheduleRepository scheduleRepository,
                            UserRepository userRepository,
-                           CompatibilityCalculator calculator) {
+                           CompatibilityCalculator calculator,
+                           PartialExchangeOptimizer partialExchangeOptimizer) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
         this.calculator = calculator;
+        this.partialExchangeOptimizer = partialExchangeOptimizer;
     }
 
     @Transactional(readOnly = true)
@@ -73,5 +80,25 @@ public class MatchingService {
                         .thenComparingDouble(MatchingSuggestionResponse::score).reversed())
                 .limit(MAX_SUGGESTIONS)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PartialExchangeResponse getPartialExchange(UUID userId1, UUID userId2) {
+        AlternantProfile profileA = profileRepository.findByUserId(userId1)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable pour l'utilisateur " + userId1));
+
+        AlternantProfile profileB = profileRepository.findByUserId(userId2)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable pour l'utilisateur " + userId2));
+
+        var schedulesA = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileA.getId());
+        var schedulesB = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileB.getId());
+
+        // loyerMensuel null : économie calculée à zéro (logements pas encore liés aux profils)
+        PartialExchangeProposal proposal = partialExchangeOptimizer.optimize(
+                profileA, profileB, schedulesA, schedulesB, null);
+
+        return PartialExchangeResponse.from(proposal);
     }
 }

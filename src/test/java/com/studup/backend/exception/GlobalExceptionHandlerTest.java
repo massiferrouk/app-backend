@@ -7,6 +7,7 @@ import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
 import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.LogementService;
+import com.studup.backend.service.AdminService;
 import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.MatchingService;
 import com.studup.backend.service.ProprietaireProfileService;
@@ -55,6 +56,9 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean
     private CalendrierService calendrierService;
+
+    @MockitoBean
+    private AdminService adminService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

@@ -4,6 +4,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * Gère la blacklist des JWT révoqués dans Redis.
@@ -35,5 +36,25 @@ public class JwtBlacklistService {
      */
     public boolean isBlacklisted(String jti) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(BLACKLIST_PREFIX + jti));
+    }
+
+    /**
+     * Révoque tous les tokens d'un utilisateur (suspension, bannissement).
+     * Clé Redis : "jwt:revoked:user:{userId}" — durée 24h (couvre les tokens 15min actifs).
+     * JwtAuthFilter doit vérifier cette clé en plus de la blacklist individuelle.
+     */
+    public void revokeAllForUser(UUID userId) {
+        redisTemplate.opsForValue().set(
+                "jwt:revoked:user:" + userId,
+                "revoked",
+                Duration.ofHours(24)
+        );
+    }
+
+    /**
+     * Vérifie si tous les tokens d'un utilisateur sont révoqués.
+     */
+    public boolean isUserRevoked(UUID userId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey("jwt:revoked:user:" + userId));
     }
 }

@@ -1,10 +1,13 @@
 package com.studup.backend.service;
 
+import com.studup.backend.algorithm.ColocationMatcher;
+import com.studup.backend.algorithm.ColocationProposal;
 import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.algorithm.PartialExchangeOptimizer;
 import com.studup.backend.algorithm.PartialExchangeProposal;
 import com.studup.backend.exception.ResourceNotFoundException;
+import com.studup.backend.model.dto.response.ColocationResponse;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.dto.response.PartialExchangeResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
@@ -29,17 +32,20 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final CompatibilityCalculator calculator;
     private final PartialExchangeOptimizer partialExchangeOptimizer;
+    private final ColocationMatcher colocationMatcher;
 
     public MatchingService(AlternantProfileRepository profileRepository,
                            AlternanceScheduleRepository scheduleRepository,
                            UserRepository userRepository,
                            CompatibilityCalculator calculator,
-                           PartialExchangeOptimizer partialExchangeOptimizer) {
+                           PartialExchangeOptimizer partialExchangeOptimizer,
+                           ColocationMatcher colocationMatcher) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
         this.calculator = calculator;
         this.partialExchangeOptimizer = partialExchangeOptimizer;
+        this.colocationMatcher = colocationMatcher;
     }
 
     @Transactional(readOnly = true)
@@ -100,5 +106,25 @@ public class MatchingService {
                 profileA, profileB, schedulesA, schedulesB, null);
 
         return PartialExchangeResponse.from(proposal);
+    }
+
+    @Transactional(readOnly = true)
+    public ColocationResponse getColocation(UUID userId1, UUID userId2) {
+        AlternantProfile profileA = profileRepository.findByUserId(userId1)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable pour l'utilisateur " + userId1));
+
+        AlternantProfile profileB = profileRepository.findByUserId(userId2)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable pour l'utilisateur " + userId2));
+
+        var schedulesA = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileA.getId());
+        var schedulesB = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileB.getId());
+
+        // Loyers null : économie zéro jusqu'à ce que les logements soient liés aux profils
+        ColocationProposal proposal = colocationMatcher.match(
+                profileA, profileB, schedulesA, schedulesB, null, null);
+
+        return ColocationResponse.from(proposal);
     }
 }

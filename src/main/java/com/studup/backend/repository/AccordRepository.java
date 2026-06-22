@@ -2,6 +2,8 @@ package com.studup.backend.repository;
 
 import com.studup.backend.model.entity.Accord;
 import com.studup.backend.model.enums.AccordStatut;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +15,14 @@ import java.util.UUID;
 
 @Repository
 public interface AccordRepository extends JpaRepository<Accord, UUID> {
+
+    // Historique des accords d'un utilisateur (initiateur ou destinataire), paginé
+    @Query("""
+            SELECT a FROM Accord a
+            WHERE a.initiatorId = :userId OR a.receiverId = :userId
+            ORDER BY a.createdAt DESC
+            """)
+    Page<Accord> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
     /**
      * Expire tous les accords EN_ATTENTE créés avant la limite de temps donnée.

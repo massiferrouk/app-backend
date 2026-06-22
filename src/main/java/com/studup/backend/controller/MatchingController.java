@@ -1,5 +1,6 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.response.ColocationResponse;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.dto.response.PartialExchangeResponse;
 import com.studup.backend.service.MatchingService;
@@ -37,5 +38,13 @@ public class MatchingController {
             @RequestParam UUID user1,
             @RequestParam UUID user2) {
         return ResponseEntity.ok(matchingService.getPartialExchange(user1, user2));
+    }
+
+    // Proposition de colocation tournante entre deux alternants au même rythme
+    @GetMapping("/colocation")
+    public ResponseEntity<ColocationResponse> getColocation(
+            @RequestParam UUID user1,
+            @RequestParam UUID user2) {
+        return ResponseEntity.ok(matchingService.getColocation(user1, user2));
     }
 }

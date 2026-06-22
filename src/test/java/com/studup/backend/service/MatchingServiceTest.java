@@ -1,5 +1,6 @@
 package com.studup.backend.service;
 
+import com.studup.backend.algorithm.ColocationMatcher;
 import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.algorithm.PartialExchangeOptimizer;
@@ -41,6 +42,7 @@ class MatchingServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private CompatibilityCalculator calculator;
     @Mock private PartialExchangeOptimizer partialExchangeOptimizer;
+    @Mock private ColocationMatcher colocationMatcher;
 
     @InjectMocks
     private MatchingService matchingService;

@@ -126,8 +126,8 @@ class MessageServiceTest {
                 "alice@studup.fr", receiver.getId(), "Premier message !");
 
         assertThat(response).isNotNull();
-        // Vérifie que les participants ont été créés (2 save sur participantRepository)
-        verify(participantRepository).save(
+        // Vérifie que les deux participants ont bien été créés (un par utilisateur)
+        verify(participantRepository, org.mockito.Mockito.times(2)).save(
                 any(ConversationParticipant.class));
     }
 

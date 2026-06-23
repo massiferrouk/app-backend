@@ -8,6 +8,7 @@ import com.studup.backend.service.AuthService;
 import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.LogementService;
 import com.studup.backend.service.AccordService;
+import com.studup.backend.service.MessageService;
 import com.studup.backend.service.AdminService;
 import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.MatchingService;
@@ -63,6 +64,9 @@ class GlobalExceptionHandlerTest {
 
     @MockitoBean
     private AccordService accordService;
+
+    @MockitoBean
+    private MessageService messageService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

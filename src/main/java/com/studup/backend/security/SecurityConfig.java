@@ -46,7 +46,9 @@ public class SecurityConfig {
                     "/api/v1/auth/login",
                     "/api/v1/auth/refresh",
                     "/actuator/health/liveness",
-                    "/actuator/health/readiness"
+                    "/actuator/health/readiness",
+                    // Handshake WebSocket + fallback SockJS — l'auth se fait via STOMP header après connexion
+                    "/ws/**"
                 ).permitAll()
                 // Détail santé composants + métriques : ADMIN uniquement
                 .requestMatchers("/actuator/**").hasRole("ADMIN")

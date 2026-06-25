@@ -1,5 +1,6 @@
 package com.studup.backend.service;
 
+import com.studup.backend.event.ReviewCreatedEvent;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.ReviewRequest;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
@@ -39,6 +41,7 @@ class ReviewServiceTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private AccordRepository accordRepository;
     @Mock private UserRepository userRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private ReviewService reviewService;
 

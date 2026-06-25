@@ -1,5 +1,6 @@
 package com.studup.backend.service;
 
+import com.studup.backend.event.ReviewCreatedEvent;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.ReviewRequest;
@@ -14,6 +15,7 @@ import com.studup.backend.repository.ReviewRepository;
 import com.studup.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,13 +31,16 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final AccordRepository accordRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ReviewService(ReviewRepository reviewRepository,
                          AccordRepository accordRepository,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         ApplicationEventPublisher eventPublisher) {
         this.reviewRepository = reviewRepository;
         this.accordRepository = accordRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -83,6 +88,9 @@ public class ReviewService {
                 .build();
 
         Review saved = reviewRepository.save(review);
+
+        // Publie un événement pour déclencher le recalcul du score de réputation
+        eventPublisher.publishEvent(new ReviewCreatedEvent(saved));
 
         log.info("Avis créé — authorId={} accordId={} targetType={} rating={}",
                 author.getId(), request.accordId(), request.targetType(), request.rating());

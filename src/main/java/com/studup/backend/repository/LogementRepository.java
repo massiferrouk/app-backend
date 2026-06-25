@@ -14,6 +14,8 @@ import java.util.UUID;
 @Repository
 public interface LogementRepository extends JpaRepository<Logement, UUID>, JpaSpecificationExecutor<Logement> {
 
+    List<Logement> findByOwnerId(UUID ownerId);
+
     List<Logement> findByOwnerIdAndStatut(UUID ownerId, LogementStatut statut);
 
     boolean existsByOwnerIdAndVille(UUID ownerId, String ville);

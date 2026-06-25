@@ -1,7 +1,11 @@
 package com.studup.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.studup.backend.model.dto.request.NotificationPreferenceRequest;
+import com.studup.backend.model.dto.response.NotificationPreferenceResponse;
 import com.studup.backend.model.dto.response.NotificationResponse;
+import com.studup.backend.model.entity.NotificationPreference;
+import com.studup.backend.model.enums.NotificationChannel;
 import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
@@ -40,7 +44,7 @@ class NotificationControllerTest {
     @MockitoBean private JwtBlacklistService jwtBlacklistService;
     @MockitoBean private CustomUserDetailsService customUserDetailsService;
 
-    private NotificationResponse buildResponse() {
+    private NotificationResponse buildNotifResponse() {
         return new NotificationResponse(
                 UUID.randomUUID(), NotificationType.NOUVEAU_MESSAGE,
                 "Nouveau message", "Bob vous a écrit",
@@ -53,7 +57,7 @@ class NotificationControllerTest {
     @WithMockUser(username = "alice@studup.fr")
     void shouldReturn200WithNotifications() throws Exception {
         when(notificationService.getMyNotifications(eq("alice@studup.fr"), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(buildResponse())));
+                .thenReturn(new PageImpl<>(List.of(buildNotifResponse())));
 
         mockMvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isOk())
@@ -86,7 +90,7 @@ class NotificationControllerTest {
         UUID notifId = UUID.randomUUID();
         NotificationResponse response = new NotificationResponse(
                 notifId, NotificationType.NOUVEAU_MESSAGE,
-                "Nouveau message", "Corps", true, null, OffsetDateTime.now());
+                "T", "C", true, null, OffsetDateTime.now());
 
         when(notificationService.markAsRead("alice@studup.fr", notifId)).thenReturn(response);
 
@@ -107,6 +111,52 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.markedAsRead").value(7));
     }
 
+    // ─── GET /notifications/preferences ──────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithPreferences() throws Exception {
+        NotificationPreference pref = NotificationPreference.builder()
+                .id(UUID.randomUUID()).userId(UUID.randomUUID())
+                .notificationType(NotificationType.NOUVEAU_MESSAGE)
+                .channel(NotificationChannel.PUSH).isEnabled(true).build();
+
+        when(notificationService.getPreferences("alice@studup.fr")).thenReturn(List.of(pref));
+
+        mockMvc.perform(get("/api/v1/notifications/preferences"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].notificationType").value("NOUVEAU_MESSAGE"))
+                .andExpect(jsonPath("$[0].isEnabled").value(true));
+    }
+
+    // ─── PUT /notifications/preferences ──────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WhenPreferenceUpdated() throws Exception {
+        NotificationPreferenceRequest request = new NotificationPreferenceRequest(
+                NotificationType.NOUVEAU_MESSAGE, NotificationChannel.PUSH, false);
+
+        NotificationPreference saved = NotificationPreference.builder()
+                .id(UUID.randomUUID()).userId(UUID.randomUUID())
+                .notificationType(NotificationType.NOUVEAU_MESSAGE)
+                .channel(NotificationChannel.PUSH).isEnabled(false).build();
+
+        when(notificationService.updatePreference(
+                eq("alice@studup.fr"),
+                eq(NotificationType.NOUVEAU_MESSAGE),
+                eq(NotificationChannel.PUSH),
+                eq(false)))
+                .thenReturn(saved);
+
+        mockMvc.perform(put("/api/v1/notifications/preferences")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isEnabled").value(false));
+    }
+
     // ─── PUT /notifications/fcm-token ────────────────────────────────────────
 
     @Test
@@ -115,7 +165,7 @@ class NotificationControllerTest {
         mockMvc.perform(put("/api/v1/notifications/fcm-token")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("fcmToken", "new-token-xyz"))))
+                        .content(objectMapper.writeValueAsString(Map.of("fcmToken", "new-token"))))
                 .andExpect(status().isNoContent());
     }
 }

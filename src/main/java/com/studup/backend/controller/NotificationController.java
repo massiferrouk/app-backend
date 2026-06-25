@@ -1,7 +1,10 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.request.NotificationPreferenceRequest;
+import com.studup.backend.model.dto.response.NotificationPreferenceResponse;
 import com.studup.backend.model.dto.response.NotificationResponse;
 import com.studup.backend.service.NotificationService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -10,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,7 +27,6 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    // Liste paginée des notifications (20/page, plus récentes en premier)
     @GetMapping
     public ResponseEntity<Page<NotificationResponse>> getMyNotifications(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -32,15 +35,13 @@ public class NotificationController {
                 notificationService.getMyNotifications(userDetails.getUsername(), pageable));
     }
 
-    // Nombre de notifications non lues — utilisé pour le badge Flutter
     @GetMapping("/unread-count")
     public ResponseEntity<Map<String, Long>> countUnread(
             @AuthenticationPrincipal UserDetails userDetails) {
-        long count = notificationService.countUnread(userDetails.getUsername());
-        return ResponseEntity.ok(Map.of("unreadCount", count));
+        return ResponseEntity.ok(Map.of("unreadCount",
+                notificationService.countUnread(userDetails.getUsername())));
     }
 
-    // Marquer une notification spécifique comme lue
     @PatchMapping("/{id}/read")
     public ResponseEntity<NotificationResponse> markAsRead(
             @PathVariable UUID id,
@@ -49,20 +50,43 @@ public class NotificationController {
                 notificationService.markAsRead(userDetails.getUsername(), id));
     }
 
-    // Marquer toutes les notifications comme lues (ex: ouverture du centre de notifs)
     @PatchMapping("/read-all")
     public ResponseEntity<Map<String, Integer>> markAllAsRead(
             @AuthenticationPrincipal UserDetails userDetails) {
-        int count = notificationService.markAllAsRead(userDetails.getUsername());
-        return ResponseEntity.ok(Map.of("markedAsRead", count));
+        return ResponseEntity.ok(Map.of("markedAsRead",
+                notificationService.markAllAsRead(userDetails.getUsername())));
     }
 
-    // Mise à jour du token FCM après chaque login Flutter
     @PutMapping("/fcm-token")
     public ResponseEntity<Void> updateFcmToken(
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal UserDetails userDetails) {
         notificationService.updateFcmToken(userDetails.getUsername(), body.get("fcmToken"));
         return ResponseEntity.noContent().build();
+    }
+
+    // Récupère toutes les préférences de notification de l'utilisateur
+    @GetMapping("/preferences")
+    public ResponseEntity<List<NotificationPreferenceResponse>> getPreferences(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        List<NotificationPreferenceResponse> prefs = notificationService
+                .getPreferences(userDetails.getUsername())
+                .stream()
+                .map(NotificationPreferenceResponse::from)
+                .toList();
+        return ResponseEntity.ok(prefs);
+    }
+
+    // Met à jour une préférence (activer/désactiver un type de notification sur un canal)
+    @PutMapping("/preferences")
+    public ResponseEntity<NotificationPreferenceResponse> updatePreference(
+            @Valid @RequestBody NotificationPreferenceRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(NotificationPreferenceResponse.from(
+                notificationService.updatePreference(
+                        userDetails.getUsername(),
+                        request.notificationType(),
+                        request.channel(),
+                        request.enabled())));
     }
 }

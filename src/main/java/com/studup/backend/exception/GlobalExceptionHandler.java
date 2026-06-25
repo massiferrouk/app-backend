@@ -64,13 +64,6 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("ACCOUNT_LOCKED", "Ce compte a été suspendu", request.getRequestURI()));
     }
 
-    @ExceptionHandler(PaymentException.class)
-    public ResponseEntity<ErrorResponse> handlePayment(PaymentException ex,
-                                                       HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
-                .body(ErrorResponse.of("PAYMENT_ERROR", ex.getMessage(), request.getRequestURI()));
-    }
-
     // Erreurs de validation Bean Validation (@NotNull, @Email, @Size...)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex,

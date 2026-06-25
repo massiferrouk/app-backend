@@ -4,6 +4,10 @@ import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.algorithm.SemaineCompatibilite;
 import com.studup.backend.exception.ResourceNotFoundException;
+import com.studup.backend.exception.UnauthorizedException;
+import com.studup.backend.model.dto.request.OverrideScheduleRequest;
+import com.studup.backend.model.dto.response.AlternanceScheduleResponse;
+import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordType;
@@ -12,31 +16,37 @@ import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CalendrierServiceTest {
 
     @Mock private AlternantProfileRepository profileRepository;
     @Mock private AlternanceScheduleRepository scheduleRepository;
+    @Mock private UserRepository userRepository;
     @Mock private CompatibilityCalculator calculator;
+    @Mock private RedisTemplate<String, Object> redisTemplate;
 
     @InjectMocks
     private CalendrierService calendrierService;
@@ -45,6 +55,12 @@ class CalendrierServiceTest {
     private UUID userId2;
     private AlternantProfile profileA;
     private AlternantProfile profileB;
+
+    // Données pour les tests override
+    private User userAlice;
+    private AlternantProfile profileAlice;
+    private AlternanceSchedule schedule;
+    private final LocalDate NEXT_MONDAY = LocalDate.now().plusWeeks(1).with(DayOfWeek.MONDAY);
 
     @BeforeEach
     void setUp() {
@@ -74,6 +90,23 @@ class CalendrierServiceTest {
                 .id(UUID.randomUUID()).user(userB)
                 .villeA("Lyon").villeB("Paris")
                 .rythme(RythmeAlternance.SEMAINE_3_1).build();
+
+        // Setup pour les tests override
+        userAlice = User.builder()
+                .id(UUID.randomUUID()).email("alice@studup.fr")
+                .firstName("Alice").lastName("A").role(UserRole.ALTERNANT)
+                .isVerified(true).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
+
+        profileAlice = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(userAlice)
+                .villeA("Paris").villeB("Lyon")
+                .dateDebut(LocalDate.now().minusMonths(6))
+                .dateFin(LocalDate.now().plusMonths(6)).build();
+
+        schedule = AlternanceSchedule.builder()
+                .id(UUID.randomUUID()).profile(profileAlice)
+                .semaine(NEXT_MONDAY).label("A").isOverridden(false).build();
     }
 
     // ─── Retourne les semaines colorisées ─────────────────────────────────────
@@ -173,5 +206,96 @@ class CalendrierServiceTest {
         List<SemaineCompatibilite> response = calendrierService.getCalendrierCompatibilite(userId1, userId2);
 
         assertThat(response).isEmpty();
+    }
+
+    // ─── Override — succès ────────────────────────────────────────────────────
+
+    @Test
+    void shouldOverrideSemaineFuture() {
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(userAlice));
+        when(profileRepository.findById(profileAlice.getId())).thenReturn(Optional.of(profileAlice));
+        when(scheduleRepository.findByProfileIdAndSemaine(profileAlice.getId(), NEXT_MONDAY))
+                .thenReturn(Optional.of(schedule));
+
+        AlternanceSchedule saved = AlternanceSchedule.builder()
+                .id(schedule.getId()).profile(profileAlice).semaine(NEXT_MONDAY)
+                .label("B").isOverridden(true).overrideReason("conges").build();
+        when(scheduleRepository.save(any())).thenReturn(saved);
+
+        AlternanceScheduleResponse response = calendrierService.overrideSemaine(
+                "alice@studup.fr", profileAlice.getId(), NEXT_MONDAY,
+                new OverrideScheduleRequest("B", "conges"));
+
+        assertThat(response.label()).isEqualTo("B");
+        assertThat(response.isOverridden()).isTrue();
+        assertThat(response.overrideReason()).isEqualTo("conges");
+    }
+
+    // ─── Override — semaine passée interdite ──────────────────────────────────
+
+    @Test
+    void shouldRejectPastSemaine() {
+        LocalDate pastMonday = LocalDate.now().minusWeeks(1).with(DayOfWeek.MONDAY);
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(userAlice));
+        when(profileRepository.findById(profileAlice.getId())).thenReturn(Optional.of(profileAlice));
+
+        assertThatThrownBy(() -> calendrierService.overrideSemaine(
+                "alice@studup.fr", profileAlice.getId(), pastMonday,
+                new OverrideScheduleRequest("B", "conges")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("passée");
+    }
+
+    // ─── Override — ownership check ───────────────────────────────────────────
+
+    @Test
+    void shouldRejectWhenNotOwner() {
+        User bob = User.builder().id(UUID.randomUUID()).email("bob@studup.fr")
+                .firstName("B").lastName("B").role(UserRole.ALTERNANT)
+                .isVerified(true).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
+
+        when(userRepository.findByEmail("bob@studup.fr")).thenReturn(Optional.of(bob));
+        when(profileRepository.findById(profileAlice.getId())).thenReturn(Optional.of(profileAlice));
+
+        assertThatThrownBy(() -> calendrierService.overrideSemaine(
+                "bob@studup.fr", profileAlice.getId(), NEXT_MONDAY,
+                new OverrideScheduleRequest("B", "conges")))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
+    // ─── Override — semaine introuvable ───────────────────────────────────────
+
+    @Test
+    void shouldThrowWhenSemaineNotFound() {
+        LocalDate unknownDate = NEXT_MONDAY.plusWeeks(50);
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(userAlice));
+        when(profileRepository.findById(profileAlice.getId())).thenReturn(Optional.of(profileAlice));
+        when(scheduleRepository.findByProfileIdAndSemaine(profileAlice.getId(), unknownDate))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> calendrierService.overrideSemaine(
+                "alice@studup.fr", profileAlice.getId(), unknownDate,
+                new OverrideScheduleRequest("B", "conges")))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ─── Override — invalidation cache Redis ──────────────────────────────────
+
+    @Test
+    void shouldInvalidateRedisCache() {
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(userAlice));
+        when(profileRepository.findById(profileAlice.getId())).thenReturn(Optional.of(profileAlice));
+        when(scheduleRepository.findByProfileIdAndSemaine(profileAlice.getId(), NEXT_MONDAY))
+                .thenReturn(Optional.of(schedule));
+        when(scheduleRepository.save(any())).thenReturn(schedule);
+        when(redisTemplate.keys(any()))
+                .thenReturn(Set.of("matching:" + UUID.randomUUID() + ":" + profileAlice.getId()));
+
+        calendrierService.overrideSemaine("alice@studup.fr", profileAlice.getId(), NEXT_MONDAY,
+                new OverrideScheduleRequest("B", "rattrapage"));
+
+        verify(redisTemplate).keys("matching:*" + profileAlice.getId() + "*");
+        verify(redisTemplate).delete(any(Set.class));
     }
 }

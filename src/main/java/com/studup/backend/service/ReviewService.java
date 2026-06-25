@@ -9,6 +9,7 @@ import com.studup.backend.model.entity.Accord;
 import com.studup.backend.model.entity.Review;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.model.enums.ReviewTargetType;
 import com.studup.backend.repository.AccordRepository;
 import com.studup.backend.repository.ReviewRepository;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -32,15 +34,18 @@ public class ReviewService {
     private final AccordRepository accordRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
 
     public ReviewService(ReviewRepository reviewRepository,
                          AccordRepository accordRepository,
                          UserRepository userRepository,
-                         ApplicationEventPublisher eventPublisher) {
+                         ApplicationEventPublisher eventPublisher,
+                         NotificationService notificationService) {
         this.reviewRepository = reviewRepository;
         this.accordRepository = accordRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -111,19 +116,56 @@ public class ReviewService {
     /**
      * Signale un avis comme inapproprié.
      * N'importe quel utilisateur authentifié peut signaler.
+     * Marque isReported = true — la décision de masquer revient à l'admin.
      */
     @Transactional
     public void reportReview(String userEmail, UUID reviewId) {
-        // On vérifie juste que l'utilisateur existe et est authentifié
         userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Avis introuvable"));
 
-        log.info("Avis signalé — reviewId={} par userEmail={}", reviewId, userEmail);
+        review.setIsReported(true);
+        reviewRepository.save(review);
 
-        // Le signalement est loggé — la décision de masquer revient à l'admin (APP-32 modération)
+        log.info("Avis signalé — reviewId={}", reviewId);
+    }
+
+    /**
+     * Retourne la queue de modération : avis signalés mais pas encore masqués.
+     * Réservé aux admins (contrôle fait dans le controller via @PreAuthorize).
+     */
+    @Transactional(readOnly = true)
+    public Page<ReviewResponse> getReportedReviews(Pageable pageable) {
+        return reviewRepository
+                .findByIsReportedTrueAndIsModeratedFalse(pageable)
+                .map(ReviewResponse::from);
+    }
+
+    /**
+     * Masque un avis signalé.
+     * Envoie une notification SYSTEME à l'auteur de l'avis.
+     * Réservé aux admins.
+     */
+    @Transactional
+    public void hideReview(UUID reviewId, String moderationNote) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Avis introuvable"));
+
+        review.setIsModerated(true);
+        review.setModerationNote(moderationNote);
+        reviewRepository.save(review);
+
+        // Notifie l'auteur que son avis a été masqué
+        notificationService.notify(
+                review.getAuthorId(),
+                NotificationType.SYSTEME,
+                Map.of(),
+                null
+        );
+
+        log.info("Avis masqué par admin — reviewId={} note={}", reviewId, moderationNote);
     }
 
     // ─── Méthodes privées ─────────────────────────────────────────────────────

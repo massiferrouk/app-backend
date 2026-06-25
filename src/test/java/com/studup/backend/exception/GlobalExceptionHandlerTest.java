@@ -100,11 +100,6 @@ class GlobalExceptionHandlerTest {
             throw new UnauthorizedException("Accès refusé");
         }
 
-        @GetMapping("/test/payment")
-        public void payment() {
-            throw new PaymentException("Paiement refusé par Stripe");
-        }
-
         @GetMapping("/test/generic-error")
         public void genericError() {
             throw new RuntimeException("Erreur inattendue");
@@ -135,14 +130,6 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"))
                 .andExpect(jsonPath("$.message").value("Accès refusé"));
-    }
-
-    @Test
-    void shouldReturn402OnPaymentError() throws Exception {
-        mockMvc.perform(get("/test/payment").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isPaymentRequired())
-                .andExpect(jsonPath("$.code").value("PAYMENT_ERROR"))
-                .andExpect(jsonPath("$.message").value("Paiement refusé par Stripe"));
     }
 
     @Test

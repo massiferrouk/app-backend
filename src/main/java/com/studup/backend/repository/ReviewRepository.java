@@ -27,4 +27,7 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
     // Vérifie l'unicité auteur + accord + cible logement
     Optional<Review> findByAuthorIdAndAccordIdAndTargetLogementId(
             UUID authorId, UUID accordId, UUID targetLogementId);
+
+    // Queue de modération admin : signalés mais pas encore masqués
+    Page<Review> findByIsReportedTrueAndIsModeratedFalse(Pageable pageable);
 }

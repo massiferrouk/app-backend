@@ -10,6 +10,7 @@ import com.studup.backend.model.entity.Review;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
 import com.studup.backend.model.enums.AccordType;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.model.enums.ReviewTargetType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
@@ -27,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +44,7 @@ class ReviewServiceTest {
     @Mock private AccordRepository accordRepository;
     @Mock private UserRepository userRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks private ReviewService reviewService;
 
@@ -84,7 +87,7 @@ class ReviewServiceTest {
                 .id(UUID.randomUUID()).authorId(alice.getId())
                 .accordId(accord.getId()).targetType(ReviewTargetType.USER)
                 .targetUserId(bob.getId()).rating(5).comment("Échange parfait")
-                .isModerated(false).createdAt(OffsetDateTime.now()).build();
+                .isModerated(false).isReported(false).createdAt(OffsetDateTime.now()).build();
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(accordRepository.findById(accord.getId())).thenReturn(Optional.of(accord));
@@ -177,7 +180,7 @@ class ReviewServiceTest {
                 .id(UUID.randomUUID()).authorId(alice.getId())
                 .targetUserId(bob.getId()).accordId(accord.getId())
                 .targetType(ReviewTargetType.USER).rating(4)
-                .isModerated(false).createdAt(OffsetDateTime.now()).build();
+                .isModerated(false).isReported(false).createdAt(OffsetDateTime.now()).build();
 
         when(reviewRepository.findByTargetUserIdAndIsModeratedFalse(
                 eq(bob.getId()), any()))
@@ -189,18 +192,61 @@ class ReviewServiceTest {
         assertThat(page.getContent().get(0).rating()).isEqualTo(4);
     }
 
-    // ─── shouldReportReviewWithoutError ──────────────────────────────────────
+    // ─── shouldMarkReviewAsReported ──────────────────────────────────────────
 
     @Test
-    void shouldReportReviewWithoutError() {
+    void shouldMarkReviewAsReported() {
         UUID reviewId = UUID.randomUUID();
-        Review review = Review.builder().id(reviewId).build();
+        Review review = Review.builder()
+                .id(reviewId).isReported(false).isModerated(false).build();
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+        when(reviewRepository.save(any())).thenReturn(review);
 
         reviewService.reportReview("alice@studup.fr", reviewId);
 
-        verify(reviewRepository).findById(reviewId);
+        verify(reviewRepository).save(argThat(r -> r.getIsReported() == Boolean.TRUE));
+    }
+
+    // ─── shouldReturnReportedReviewsQueue ────────────────────────────────────
+
+    @Test
+    void shouldReturnReportedReviewsQueue() {
+        Review reported = Review.builder()
+                .id(UUID.randomUUID()).authorId(alice.getId())
+                .rating(3).isReported(true).isModerated(false)
+                .createdAt(OffsetDateTime.now()).build();
+
+        when(reviewRepository.findByIsReportedTrueAndIsModeratedFalse(any()))
+                .thenReturn(new PageImpl<>(List.of(reported)));
+
+        var page = reviewService.getReportedReviews(PageRequest.of(0, 20));
+
+        assertThat(page.getContent()).hasSize(1);
+    }
+
+    // ─── shouldHideReviewAndNotifyAuthor ─────────────────────────────────────
+
+    @Test
+    void shouldHideReviewAndNotifyAuthor() {
+        UUID reviewId = UUID.randomUUID();
+        Review review = Review.builder()
+                .id(reviewId).authorId(alice.getId())
+                .isReported(true).isModerated(false).build();
+
+        when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+        when(reviewRepository.save(any())).thenReturn(review);
+
+        reviewService.hideReview(reviewId, "Contenu inapproprié");
+
+        verify(reviewRepository).save(argThat(r ->
+                r.getIsModerated() == Boolean.TRUE &&
+                "Contenu inapproprié".equals(r.getModerationNote())));
+        verify(notificationService).notify(
+                eq(alice.getId()),
+                eq(NotificationType.SYSTEME),
+                eq(Map.of()),
+                isNull());
     }
 }

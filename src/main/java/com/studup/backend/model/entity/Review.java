@@ -51,6 +51,10 @@ public class Review {
     @Column(columnDefinition = "TEXT")
     private String comment;
 
+    // true = signalé par un utilisateur, en attente de décision admin
+    @Column(name = "is_reported", nullable = false)
+    private Boolean isReported;
+
     // false = visible | true = masqué par la modération
     @Column(name = "is_moderated", nullable = false)
     private Boolean isModerated;
@@ -64,6 +68,7 @@ public class Review {
     @PrePersist
     protected void onCreate() {
         createdAt = OffsetDateTime.now();
+        if (isReported == null) isReported = false;
         if (isModerated == null) isModerated = false;
     }
 }

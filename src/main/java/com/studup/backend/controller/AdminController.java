@@ -1,8 +1,12 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.request.HideReviewRequest;
 import com.studup.backend.model.dto.response.AdminUserResponse;
+import com.studup.backend.model.dto.response.ReviewResponse;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.service.AdminService;
+import com.studup.backend.service.ReviewService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -20,9 +24,11 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService adminService;
+    private final ReviewService reviewService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, ReviewService reviewService) {
         this.adminService = adminService;
+        this.reviewService = reviewService;
     }
 
     // Liste des utilisateurs avec filtres optionnels
@@ -48,5 +54,21 @@ public class AdminController {
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails adminDetails) {
         return ResponseEntity.ok(adminService.banUser(id, adminDetails.getUsername()));
+    }
+
+    // Queue de modération : avis signalés en attente de décision
+    @GetMapping("/moderation/reviews")
+    public ResponseEntity<Page<ReviewResponse>> getReportedReviews(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(reviewService.getReportedReviews(pageable));
+    }
+
+    // Masquer un avis signalé et notifier son auteur
+    @PutMapping("/moderation/reviews/{id}/hide")
+    public ResponseEntity<Void> hideReview(
+            @PathVariable UUID id,
+            @Valid @RequestBody HideReviewRequest request) {
+        reviewService.hideReview(id, request.moderationNote());
+        return ResponseEntity.noContent().build();
     }
 }

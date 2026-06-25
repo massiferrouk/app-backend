@@ -16,6 +16,7 @@ import com.studup.backend.service.LogementService;
 import com.studup.backend.service.AccordService;
 import com.studup.backend.service.MessageService;
 import com.studup.backend.service.NotificationService;
+import com.studup.backend.service.ProprietaireDashboardService;
 import com.studup.backend.service.ReputationService;
 import com.studup.backend.service.ReviewService;
 import com.studup.backend.service.AdminService;
@@ -91,6 +92,9 @@ class RateLimitingTest {
 
     @MockitoBean
     private ReputationService reputationService;
+
+    @MockitoBean
+    private ProprietaireDashboardService proprietaireDashboardService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

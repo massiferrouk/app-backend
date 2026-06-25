@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -39,4 +40,15 @@ public interface AccordRepository extends JpaRepository<Accord, UUID> {
             @Param("limite") OffsetDateTime limite,
             @Param("nouveauStatut") AccordStatut nouveauStatut
     );
+
+    // Retourne les IDs des logements actuellement occupés (dans un accord EN_COURS)
+    // Cherche dans les deux colonnes logement_a_id et logement_b_id
+    @Query(value = """
+            SELECT logement_a_id AS id FROM accords
+              WHERE logement_a_id IN :ids AND statut = 'EN_COURS'
+            UNION
+            SELECT logement_b_id AS id FROM accords
+              WHERE logement_b_id IN :ids AND statut = 'EN_COURS' AND logement_b_id IS NOT NULL
+            """, nativeQuery = true)
+    List<UUID> findOccupiedLogementIds(@Param("ids") List<UUID> ids);
 }

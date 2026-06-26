@@ -1,6 +1,8 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.response.AlternantDashboardResponse;
 import com.studup.backend.model.dto.response.ProprietaireDashboardResponse;
+import com.studup.backend.service.AlternantDashboardService;
 import com.studup.backend.service.ProprietaireDashboardService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,9 +16,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final ProprietaireDashboardService proprietaireDashboardService;
+    private final AlternantDashboardService alternantDashboardService;
 
-    public DashboardController(ProprietaireDashboardService proprietaireDashboardService) {
+    public DashboardController(ProprietaireDashboardService proprietaireDashboardService,
+                               AlternantDashboardService alternantDashboardService) {
         this.proprietaireDashboardService = proprietaireDashboardService;
+        this.alternantDashboardService = alternantDashboardService;
     }
 
     @GetMapping("/proprietaire")
@@ -24,5 +29,12 @@ public class DashboardController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(
                 proprietaireDashboardService.getDashboard(userDetails.getUsername()));
+    }
+
+    @GetMapping("/alternant")
+    public ResponseEntity<AlternantDashboardResponse> getDashboardAlternant(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                alternantDashboardService.getDashboard(userDetails.getUsername()));
     }
 }

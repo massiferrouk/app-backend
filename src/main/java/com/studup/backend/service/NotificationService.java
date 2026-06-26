@@ -177,4 +177,19 @@ public class NotificationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
         return notificationRepository.markAllAsRead(user.getId());
     }
+
+    // Désactive le digest hebdomadaire par email — appelé depuis le lien de désabonnement
+    @Transactional
+    public void disableEmailDigest(UUID userId) {
+        NotificationPreference pref = preferenceRepository
+                .findByUserIdAndNotificationTypeAndChannel(userId, NotificationType.SYSTEME, NotificationChannel.EMAIL)
+                .orElse(NotificationPreference.builder()
+                        .userId(userId)
+                        .notificationType(NotificationType.SYSTEME)
+                        .channel(NotificationChannel.EMAIL)
+                        .build());
+        pref.setIsEnabled(false);
+        preferenceRepository.save(pref);
+        log.info("Désabonnement digest email pour userId={}", userId);
+    }
 }

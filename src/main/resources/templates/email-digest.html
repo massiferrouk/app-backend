@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Votre résumé StudUp</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; padding: 32px; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #2C3E50; font-size: 24px; margin: 0; }
+        .section { border-left: 4px solid #3498DB; padding-left: 16px; margin-bottom: 24px; }
+        .section h2 { color: #2C3E50; font-size: 16px; margin: 0 0 8px 0; }
+        .badge { display: inline-block; background: #3498DB; color: white;
+                 border-radius: 12px; padding: 2px 10px; font-size: 14px; }
+        .badge-warning { background: #F39C12; }
+        .badge-success { background: #27AE60; }
+        .cta { text-align: center; margin: 32px 0; }
+        .cta a { background: #3498DB; color: white; padding: 12px 32px;
+                 border-radius: 6px; text-decoration: none; font-weight: bold; }
+        .footer { text-align: center; color: #999; font-size: 12px; margin-top: 32px; }
+        .footer a { color: #999; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>Bonjour <span th:text="${prenom}">Prénom</span> 👋</h1>
+        <p style="color: #666;">Voici ce qui s'est passé sur StudUp cette semaine.</p>
+    </div>
+
+    <!-- Accords en attente -->
+    <div class="section" th:if="${nbAccordsEnAttente > 0}">
+        <h2>Demandes en attente de ta réponse</h2>
+        <p>
+            <span class="badge badge-warning" th:text="${nbAccordsEnAttente}">0</span>
+            demande(s) t'attendent — elles expirent dans 72h.
+        </p>
+    </div>
+
+    <!-- Messages non lus -->
+    <div class="section" th:if="${nbMessagesNonLus > 0}">
+        <h2>Messages non lus</h2>
+        <p>
+            Tu as <span class="badge" th:text="${nbMessagesNonLus}">0</span>
+            message(s) non lu(s) dans tes conversations.
+        </p>
+    </div>
+
+    <!-- Prochains accords -->
+    <div class="section" th:if="${nbProchainAccords > 0}">
+        <h2>Prochains échanges</h2>
+        <p>
+            <span class="badge badge-success" th:text="${nbProchainAccords}">0</span>
+            échange(s) prévu(s) dans les 2 prochaines semaines.
+        </p>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta">
+        <a th:href="${appUrl}">Ouvrir StudUp</a>
+    </div>
+
+    <div class="footer">
+        <p>Tu reçois cet email car tu es inscrit(e) sur StudUp.</p>
+        <p><a th:href="${unsubscribeUrl}">Se désabonner du résumé hebdomadaire</a></p>
+    </div>
+
+</div>
+</body>
+</html>

@@ -89,4 +89,11 @@ public class NotificationController {
                         request.channel(),
                         request.enabled())));
     }
+
+    // Désabonnement en 1 clic depuis le lien dans l'email — sans authentification requise
+    @GetMapping("/unsubscribe/{userId}")
+    public ResponseEntity<Void> unsubscribeDigest(@PathVariable UUID userId) {
+        notificationService.disableEmailDigest(userId);
+        return ResponseEntity.noContent().build();
+    }
 }

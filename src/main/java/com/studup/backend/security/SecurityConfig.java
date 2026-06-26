@@ -49,6 +49,8 @@ public class SecurityConfig {
                     "/actuator/health/readiness",
                     // Abonnement iCal public — les applis calendrier s'y abonnent sans JWT
                     "/api/v1/calendrier/subscribe/**",
+                    // Désabonnement digest email — lien cliquable dans l'email sans JWT
+                    "/api/v1/notifications/unsubscribe/**",
                     // Handshake WebSocket + fallback SockJS — l'auth se fait via STOMP header après connexion
                     "/ws/**"
                 ).permitAll()

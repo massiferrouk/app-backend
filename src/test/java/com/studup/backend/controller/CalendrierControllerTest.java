@@ -10,12 +10,16 @@ import com.studup.backend.model.enums.CompatibiliteType;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.security.SecurityConfig;
+import com.studup.backend.model.dto.response.IcalTokenResponse;
 import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.DisponibiliteService;
+import com.studup.backend.service.ICalExportService;
 import com.studup.backend.service.MatchingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,6 +29,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -34,12 +39,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = CalendrierController.class)
+@Import(SecurityConfig.class)
 class CalendrierControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
 
     @MockitoBean private CalendrierService calendrierService;
+    @MockitoBean private ICalExportService iCalExportService;
     @MockitoBean private JwtUtil jwtUtil;
     @MockitoBean private CustomUserDetailsService customUserDetailsService;
     @MockitoBean private JwtBlacklistService jwtBlacklistService;
@@ -107,11 +114,11 @@ class CalendrierControllerTest {
     }
 
     @Test
-    void shouldReturn401WhenNotAuthenticated() throws Exception {
+    void shouldReturn403WhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/calendrier/compatibilite")
                         .param("user1", UUID.randomUUID().toString())
                         .param("user2", UUID.randomUUID().toString()))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     // ─── PATCH /api/v1/calendrier/{profileId}/semaines/{semaine} ─────────────
@@ -173,13 +180,61 @@ class CalendrierControllerTest {
     }
 
     @Test
-    void shouldReturn401OnOverrideWhenNotAuthenticated() throws Exception {
+    void shouldReturn403OnOverrideWhenNotAuthenticated() throws Exception {
         mockMvc.perform(patch("/api/v1/calendrier/" + UUID.randomUUID()
                         + "/semaines/" + LocalDate.now().plusWeeks(1))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OverrideScheduleRequest("B", "conges"))))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
+    }
+
+    // ─── GET /api/v1/calendrier/export ───────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithIcsFile() throws Exception {
+        String icalContent = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n";
+        when(iCalExportService.generateIcal("alice@studup.fr")).thenReturn(icalContent);
+
+        mockMvc.perform(get("/api/v1/calendrier/export"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"studup-calendrier.ics\""))
+                .andExpect(content().contentTypeCompatibleWith("text/calendar"));
+    }
+
+    @Test
+    void shouldReturn403OnExportWhenNotAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/v1/calendrier/export"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ─── GET /api/v1/calendrier/subscribe/{token} — public ───────────────────
+
+    @Test
+    void shouldReturn200OnSubscribeWithValidToken() throws Exception {
+        String icalContent = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n";
+        when(iCalExportService.generateIcalByToken("mon-token")).thenReturn(icalContent);
+
+        mockMvc.perform(get("/api/v1/calendrier/subscribe/mon-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/calendar"));
+    }
+
+    // ─── GET /api/v1/calendrier/token ────────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithToken() throws Exception {
+        IcalTokenResponse tokenResponse = new IcalTokenResponse(
+                "abc123", "http://localhost:8080/api/v1/calendrier/subscribe/abc123");
+        when(iCalExportService.getOrCreateToken("alice@studup.fr")).thenReturn(tokenResponse);
+
+        mockMvc.perform(get("/api/v1/calendrier/token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("abc123"))
+                .andExpect(jsonPath("$.subscribeUrl", containsString("/subscribe/abc123")));
     }
 }

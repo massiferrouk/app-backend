@@ -17,6 +17,7 @@ import com.studup.backend.service.AccordService;
 import com.studup.backend.service.MessageService;
 import com.studup.backend.service.NotificationService;
 import com.studup.backend.service.AlternantDashboardService;
+import com.studup.backend.service.ICalExportService;
 import com.studup.backend.service.ProprietaireDashboardService;
 import com.studup.backend.service.ReputationService;
 import com.studup.backend.service.ReviewService;
@@ -99,6 +100,9 @@ class RateLimitingTest {
 
     @MockitoBean
     private AlternantDashboardService alternantDashboardService;
+
+    @MockitoBean
+    private ICalExportService iCalExportService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

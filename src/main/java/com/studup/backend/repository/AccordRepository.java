@@ -71,6 +71,16 @@ public interface AccordRepository extends JpaRepository<Accord, UUID> {
             """)
     List<Accord> findAccordsTerminesEchange(@Param("userId") UUID userId);
 
+    // Retourne les accords actifs (EN_COURS ou ACCEPTE) avec des dates, pour l'export iCal
+    @Query("""
+            SELECT a FROM Accord a
+            WHERE (a.initiatorId = :userId OR a.receiverId = :userId)
+            AND a.statut IN ('EN_COURS', 'ACCEPTE')
+            AND a.dateDebut IS NOT NULL
+            AND a.dateFin IS NOT NULL
+            """)
+    List<Accord> findActiveAccordsForUser(@Param("userId") UUID userId);
+
     // Retourne les IDs des logements actuellement occupés (dans un accord EN_COURS)
     // Cherche dans les deux colonnes logement_a_id et logement_b_id
     @Query(value = """

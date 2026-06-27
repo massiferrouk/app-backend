@@ -46,12 +46,20 @@ public class MinioService {
      * Le client Flutter appelle directement cette URL — le fichier ne transite pas par le backend.
      */
     public String generatePresignedUrl(String fileKey) {
+        return generatePresignedUrl(fileKey, 1, TimeUnit.HOURS);
+    }
+
+    /**
+     * Génère une URL signée avec un TTL personnalisé.
+     * Utilisé pour les photos de messages (24h) vs photos logements (1h).
+     */
+    public String generatePresignedUrl(String fileKey, int duration, TimeUnit unit) {
         try {
             return minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .bucket(bucketLogements)
                     .object(fileKey)
                     .method(Method.GET)
-                    .expiry(1, TimeUnit.HOURS)
+                    .expiry(duration, unit)
                     .build());
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de la génération de l'URL signée : " + e.getMessage(), e);

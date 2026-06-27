@@ -2,10 +2,12 @@ package com.studup.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studup.backend.model.dto.request.SendMessageRequest;
+import com.studup.backend.model.dto.response.MessagePhotoResponse;
 import com.studup.backend.model.dto.response.MessageResponse;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.service.MediaMessageService;
 import com.studup.backend.service.MessageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,6 +42,9 @@ class MessageControllerTest {
 
     @MockitoBean
     private MessageService messageService;
+
+    @MockitoBean
+    private MediaMessageService mediaMessageService;
 
     @MockitoBean
     private JwtUtil jwtUtil;
@@ -135,5 +141,44 @@ class MessageControllerTest {
                         .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isRead").value(true));
+    }
+
+    // ─── POST /{messageId}/photos ─────────────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn201WhenPhotosUploaded() throws Exception {
+        UUID messageId = UUID.randomUUID();
+        MessagePhotoResponse photoResponse = new MessagePhotoResponse(
+                messageId.toString(),
+                List.of("https://minio/signed-url-1", "https://minio/signed-url-2"));
+
+        when(mediaMessageService.uploadPhotos(eq(messageId), any()))
+                .thenReturn(photoResponse);
+
+        MockMultipartFile photo1 = new MockMultipartFile(
+                "photos", "photo1.jpg", "image/jpeg", new byte[]{1, 2, 3});
+        MockMultipartFile photo2 = new MockMultipartFile(
+                "photos", "photo2.jpg", "image/jpeg", new byte[]{4, 5, 6});
+
+        mockMvc.perform(multipart("/api/v1/messages/" + messageId + "/photos")
+                        .file(photo1)
+                        .file(photo2)
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.messageId").value(messageId.toString()))
+                .andExpect(jsonPath("$.photoUrls[0]").value("https://minio/signed-url-1"))
+                .andExpect(jsonPath("$.photoUrls[1]").value("https://minio/signed-url-2"));
+    }
+
+    @Test
+    void shouldReturn401WhenUploadingPhotosWithoutAuth() throws Exception {
+        MockMultipartFile photo = new MockMultipartFile(
+                "photos", "photo.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/messages/" + UUID.randomUUID() + "/photos")
+                        .file(photo)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
     }
 }

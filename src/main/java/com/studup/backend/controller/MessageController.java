@@ -1,7 +1,9 @@
 package com.studup.backend.controller;
 
 import com.studup.backend.model.dto.request.SendMessageRequest;
+import com.studup.backend.model.dto.response.MessagePhotoResponse;
 import com.studup.backend.model.dto.response.MessageResponse;
+import com.studup.backend.service.MediaMessageService;
 import com.studup.backend.service.MessageService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -15,7 +17,9 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,9 +27,11 @@ import java.util.UUID;
 public class MessageController {
 
     private final MessageService messageService;
+    private final MediaMessageService mediaMessageService;
 
-    public MessageController(MessageService messageService) {
+    public MessageController(MessageService messageService, MediaMessageService mediaMessageService) {
         this.messageService = messageService;
+        this.mediaMessageService = mediaMessageService;
     }
 
     // Envoi d'un message via HTTP (REST)
@@ -57,6 +63,16 @@ public class MessageController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(
                 messageService.markAsRead(userDetails.getUsername(), messageId));
+    }
+
+    // Upload de photos dans un message (max 5, max 5Mo chacune, JPEG/PNG/WEBP)
+    // Flutter envoie un multipart/form-data avec le champ "photos"
+    @PostMapping("/{messageId}/photos")
+    public ResponseEntity<MessagePhotoResponse> uploadPhotos(
+            @PathVariable UUID messageId,
+            @RequestPart("photos") List<MultipartFile> photos) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(mediaMessageService.uploadPhotos(messageId, photos));
     }
 
     // Endpoint WebSocket STOMP : Flutter envoie vers /app/chat/{conversationId}

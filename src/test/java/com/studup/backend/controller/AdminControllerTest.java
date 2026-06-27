@@ -2,20 +2,23 @@ package com.studup.backend.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studup.backend.exception.ResourceNotFoundException;
+import com.studup.backend.model.dto.request.HideMessageRequest;
 import com.studup.backend.model.dto.request.HideReviewRequest;
 import com.studup.backend.model.dto.response.AdminUserResponse;
+import com.studup.backend.model.dto.response.MessageReportResponse;
 import com.studup.backend.model.dto.response.ReviewResponse;
 import com.studup.backend.model.enums.ReviewTargetType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.security.SecurityConfig;
 import com.studup.backend.service.AdminService;
 import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.MatchingService;
+import com.studup.backend.service.ModerationService;
 import com.studup.backend.service.ReviewService;
-import com.studup.backend.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -50,6 +53,7 @@ class AdminControllerTest {
 
     @MockitoBean private AdminService adminService;
     @MockitoBean private ReviewService reviewService;
+    @MockitoBean private ModerationService moderationService;
     @MockitoBean private JwtUtil jwtUtil;
     @MockitoBean private CustomUserDetailsService customUserDetailsService;
     @MockitoBean private JwtBlacklistService jwtBlacklistService;
@@ -134,6 +138,63 @@ class AdminControllerTest {
         mockMvc.perform(put("/api/v1/admin/users/{id}/ban", userId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isActive").value(false));
+    }
+
+    // ─── GET /api/v1/admin/moderation/messages ───────────────────────────────
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldReturn200WithPendingMessageReports() throws Exception {
+        MessageReportResponse report = new MessageReportResponse(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "contenu inapproprié", OffsetDateTime.now());
+
+        when(moderationService.getPendingReports(any()))
+                .thenReturn(new PageImpl<>(List.of(report), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/v1/admin/moderation/messages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].motif").value("contenu inapproprié"));
+    }
+
+    @Test
+    void shouldReturn403OnMessageQueueWhenNotAdmin() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/moderation/messages"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ─── PUT /api/v1/admin/moderation/messages/{messageId}/hide ──────────────
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldReturn204OnHideMessage() throws Exception {
+        UUID messageId = UUID.randomUUID();
+        doNothing().when(moderationService).hideMessage(eq(messageId), any());
+
+        String body = objectMapper.writeValueAsString(
+                new HideMessageRequest("Insulte envers un autre utilisateur"));
+
+        mockMvc.perform(put("/api/v1/admin/moderation/messages/{messageId}/hide", messageId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void shouldReturn404OnHideUnknownMessage() throws Exception {
+        UUID unknownId = UUID.randomUUID();
+        doThrow(new ResourceNotFoundException("Message introuvable"))
+                .when(moderationService).hideMessage(eq(unknownId), any());
+
+        String body = objectMapper.writeValueAsString(
+                new HideMessageRequest("Note de modération"));
+
+        mockMvc.perform(put("/api/v1/admin/moderation/messages/{messageId}/hide", unknownId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound());
     }
 
     // ─── GET /api/v1/admin/moderation/reviews ────────────────────────────────

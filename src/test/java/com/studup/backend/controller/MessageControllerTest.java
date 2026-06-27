@@ -9,6 +9,7 @@ import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.MediaMessageService;
 import com.studup.backend.service.MessageService;
+import com.studup.backend.service.ModerationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -45,6 +46,9 @@ class MessageControllerTest {
 
     @MockitoBean
     private MediaMessageService mediaMessageService;
+
+    @MockitoBean
+    private ModerationService moderationService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

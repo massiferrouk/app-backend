@@ -13,6 +13,7 @@ import com.studup.backend.service.NotificationService;
 import com.studup.backend.service.AlternantDashboardService;
 import com.studup.backend.service.ICalExportService;
 import com.studup.backend.service.MediaMessageService;
+import com.studup.backend.service.ModerationService;
 import com.studup.backend.service.ProprietaireDashboardService;
 import com.studup.backend.service.ReputationService;
 import com.studup.backend.service.ReviewService;
@@ -97,6 +98,9 @@ class MDCFilterTest {
 
     @MockitoBean
     private MediaMessageService mediaMessageService;
+
+    @MockitoBean
+    private ModerationService moderationService;
 
     @MockitoBean
     private JwtUtil jwtUtil;

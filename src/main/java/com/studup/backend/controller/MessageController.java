@@ -1,10 +1,13 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.request.ReportMessageRequest;
 import com.studup.backend.model.dto.request.SendMessageRequest;
 import com.studup.backend.model.dto.response.MessagePhotoResponse;
+import com.studup.backend.model.dto.response.MessageReportResponse;
 import com.studup.backend.model.dto.response.MessageResponse;
 import com.studup.backend.service.MediaMessageService;
 import com.studup.backend.service.MessageService;
+import com.studup.backend.service.ModerationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,10 +31,14 @@ public class MessageController {
 
     private final MessageService messageService;
     private final MediaMessageService mediaMessageService;
+    private final ModerationService moderationService;
 
-    public MessageController(MessageService messageService, MediaMessageService mediaMessageService) {
+    public MessageController(MessageService messageService,
+                              MediaMessageService mediaMessageService,
+                              ModerationService moderationService) {
         this.messageService = messageService;
         this.mediaMessageService = mediaMessageService;
+        this.moderationService = moderationService;
     }
 
     // Envoi d'un message via HTTP (REST)
@@ -73,6 +80,17 @@ public class MessageController {
             @RequestPart("photos") List<MultipartFile> photos) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mediaMessageService.uploadPhotos(messageId, photos));
+    }
+
+    // Signalement d'un message par un utilisateur — transmis à la queue de modération admin
+    @PostMapping("/{messageId}/report")
+    public ResponseEntity<MessageReportResponse> reportMessage(
+            @PathVariable UUID messageId,
+            @Valid @RequestBody ReportMessageRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(moderationService.reportMessage(
+                        messageId, userDetails.getUsername(), request.motif()));
     }
 
     // Endpoint WebSocket STOMP : Flutter envoie vers /app/chat/{conversationId}

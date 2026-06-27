@@ -1,10 +1,13 @@
 package com.studup.backend.controller;
 
+import com.studup.backend.model.dto.request.HideMessageRequest;
 import com.studup.backend.model.dto.request.HideReviewRequest;
 import com.studup.backend.model.dto.response.AdminUserResponse;
+import com.studup.backend.model.dto.response.MessageReportResponse;
 import com.studup.backend.model.dto.response.ReviewResponse;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.service.AdminService;
+import com.studup.backend.service.ModerationService;
 import com.studup.backend.service.ReviewService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -25,10 +28,14 @@ public class AdminController {
 
     private final AdminService adminService;
     private final ReviewService reviewService;
+    private final ModerationService moderationService;
 
-    public AdminController(AdminService adminService, ReviewService reviewService) {
+    public AdminController(AdminService adminService,
+                           ReviewService reviewService,
+                           ModerationService moderationService) {
         this.adminService = adminService;
         this.reviewService = reviewService;
+        this.moderationService = moderationService;
     }
 
     // Liste des utilisateurs avec filtres optionnels
@@ -54,6 +61,22 @@ public class AdminController {
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails adminDetails) {
         return ResponseEntity.ok(adminService.banUser(id, adminDetails.getUsername()));
+    }
+
+    // Queue de modération messages : signalements en attente de décision
+    @GetMapping("/moderation/messages")
+    public ResponseEntity<Page<MessageReportResponse>> getPendingMessageReports(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(moderationService.getPendingReports(pageable));
+    }
+
+    // Masquer un message signalé avec une note de modération
+    @PutMapping("/moderation/messages/{messageId}/hide")
+    public ResponseEntity<Void> hideMessage(
+            @PathVariable UUID messageId,
+            @Valid @RequestBody HideMessageRequest request) {
+        moderationService.hideMessage(messageId, request.moderationNote());
+        return ResponseEntity.noContent().build();
     }
 
     // Queue de modération : avis signalés en attente de décision

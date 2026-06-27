@@ -11,36 +11,26 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "messages")
+@Table(name = "message_reports")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Message {
+public class MessageReport {
 
     @Id
     @UuidGenerator
     @Column(updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "conversation_id", nullable = false)
-    private UUID conversationId;
+    @Column(name = "message_id", nullable = false)
+    private UUID messageId;
 
-    @Column(name = "sender_id", nullable = false)
-    private UUID senderId;
+    @Column(name = "reporter_id", nullable = false)
+    private UUID reporterId;
 
-    // Contenu du message — max 2000 caractères (contrôle en service)
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
-
-    @Column(name = "is_read", nullable = false)
-    private Boolean isRead;
-
-    @Column(name = "is_hidden", nullable = false)
-    private Boolean isHidden;
-
-    @Column(name = "moderation_note", columnDefinition = "TEXT")
-    private String moderationNote;
+    private String motif;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -48,7 +38,5 @@ public class Message {
     @PrePersist
     protected void onCreate() {
         createdAt = OffsetDateTime.now();
-        if (isRead == null) isRead = false;
-        if (isHidden == null) isHidden = false;
     }
 }

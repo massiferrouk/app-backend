@@ -41,10 +41,12 @@ public class Accord {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "accord_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS accord_type)")
     private AccordType type;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "accord_statut")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS accord_statut)")
     private AccordStatut statut;
 
     @Column(name = "date_debut")

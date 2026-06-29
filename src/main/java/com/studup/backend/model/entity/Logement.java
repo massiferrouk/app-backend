@@ -49,6 +49,7 @@ public class Logement {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "logement_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS logement_type)")
     private LogementType type;
 
     @Column(precision = 6, scale = 2)
@@ -72,6 +73,7 @@ public class Logement {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "logement_statut")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS logement_statut)")
     private LogementStatut statut;
 
     @Column(name = "is_verified", nullable = false)
@@ -83,6 +85,7 @@ public class Logement {
     // Nullable : renseigné uniquement quand l'alternant associe son logement à une de ses villes
     @Enumerated(EnumType.STRING)
     @Column(name = "ville_associee", columnDefinition = "ville_associee")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS ville_associee)")
     private VilleAssociee villeAssociee;
 
     @Column(name = "created_at", nullable = false, updatable = false)

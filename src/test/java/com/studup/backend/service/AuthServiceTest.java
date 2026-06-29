@@ -84,7 +84,7 @@ class AuthServiceTest {
         when(passwordEncoder.encode("motdepasse123")).thenReturn("$2a$10$hashedpassword");
 
         User savedUser = buildUser("alice@yuniv.fr");
-        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(userRepository.saveAndFlush(any(User.class))).thenReturn(savedUser);
 
         UserResponse response = authService.register(request);
 
@@ -95,7 +95,7 @@ class AuthServiceTest {
 
         verify(passwordEncoder).encode("motdepasse123");
         verify(emailConfirmationService).sendConfirmationEmail(any(User.class));
-        verify(userRepository).save(any(User.class));
+        verify(userRepository).saveAndFlush(any(User.class));
     }
 
     @Test

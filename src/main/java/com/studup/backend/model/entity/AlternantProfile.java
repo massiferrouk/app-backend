@@ -50,6 +50,7 @@ public class AlternantProfile {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "rythme_alternance")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS rythme_alternance)")
     private RythmeAlternance rythme;
 
     @Column(name = "created_at", nullable = false, updatable = false)

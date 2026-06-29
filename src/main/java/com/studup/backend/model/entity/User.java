@@ -32,6 +32,7 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "user_role")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS user_role)")
     private UserRole role;
 
     @Column(name = "first_name", nullable = false, length = 100)

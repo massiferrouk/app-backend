@@ -29,11 +29,13 @@ public class NotificationPreference {
     private UUID userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "notification_type", nullable = false)
+    @Column(name = "notification_type", nullable = false, columnDefinition = "notification_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS notification_type)")
     private NotificationType notificationType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "notification_channel")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS notification_channel)")
     private NotificationChannel channel;
 
     // true = l'utilisateur veut recevoir ce type sur ce canal

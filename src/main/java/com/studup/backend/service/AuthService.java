@@ -85,7 +85,8 @@ public class AuthService {
                 .isActive(true)
                 .build();
 
-        User savedUser = userRepository.save(user);
+        // saveAndFlush garantit que le user est persisté en BDD avant l'INSERT JDBC du token (FK)
+        User savedUser = userRepository.saveAndFlush(user);
         emailConfirmationService.sendConfirmationEmail(savedUser);
 
         metrics.incrementInscriptionsDaily();

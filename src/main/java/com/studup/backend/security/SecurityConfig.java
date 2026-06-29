@@ -59,6 +59,10 @@ public class SecurityConfig {
                 // Tout le reste nécessite un token JWT valide
                 .anyRequest().authenticated()
             )
+            // 401 pour les requêtes sans/mauvais token (Spring Security retourne 403 par défaut)
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((req, res, e) ->
+                    res.sendError(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")))
             // On branche notre filtre JWT juste AVANT le filtre d'authentification par défaut de Spring
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             // Pas de formulaire de login HTML — on est une API REST

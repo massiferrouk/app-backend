@@ -28,7 +28,8 @@ public class Notification {
     private UUID userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "notification_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS notification_type)")
     private NotificationType type;
 
     @Column(nullable = false, length = 200)

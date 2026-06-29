@@ -31,7 +31,8 @@ public class Disponibilite {
     private LocalDate dateFin;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "disponibilite_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS disponibilite_type)")
     @Builder.Default
     private DisponibiliteType type = DisponibiliteType.LIBRE;
 }

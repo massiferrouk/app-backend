@@ -114,11 +114,11 @@ class CalendrierControllerTest {
     }
 
     @Test
-    void shouldReturn403WhenNotAuthenticated() throws Exception {
+    void shouldReturn401WhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/calendrier/compatibilite")
                         .param("user1", UUID.randomUUID().toString())
                         .param("user2", UUID.randomUUID().toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── PATCH /api/v1/calendrier/{profileId}/semaines/{semaine} ─────────────
@@ -180,14 +180,14 @@ class CalendrierControllerTest {
     }
 
     @Test
-    void shouldReturn403OnOverrideWhenNotAuthenticated() throws Exception {
+    void shouldReturn401OnOverrideWhenNotAuthenticated() throws Exception {
         mockMvc.perform(patch("/api/v1/calendrier/" + UUID.randomUUID()
                         + "/semaines/" + LocalDate.now().plusWeeks(1))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OverrideScheduleRequest("B", "conges"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── GET /api/v1/calendrier/export ───────────────────────────────────────
@@ -206,9 +206,9 @@ class CalendrierControllerTest {
     }
 
     @Test
-    void shouldReturn403OnExportWhenNotAuthenticated() throws Exception {
+    void shouldReturn401OnExportWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/calendrier/export"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── GET /api/v1/calendrier/subscribe/{token} — public ───────────────────

@@ -55,9 +55,9 @@ class DashboardControllerTest {
     }
 
     @Test
-    void shouldReturn403WhenNotAuthenticated() throws Exception {
+    void shouldReturn401WhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/dashboard/proprietaire"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── GET /api/v1/dashboard/alternant ─────────────────────────────────────
@@ -77,9 +77,9 @@ class DashboardControllerTest {
     }
 
     @Test
-    void shouldReturn403OnAlternantDashboardWhenNotAuthenticated() throws Exception {
+    void shouldReturn401OnAlternantDashboardWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/dashboard/alternant"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

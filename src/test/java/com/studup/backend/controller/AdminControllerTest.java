@@ -91,9 +91,9 @@ class AdminControllerTest {
     }
 
     @Test
-    void shouldReturn403WhenNotAuthenticated() throws Exception {
+    void shouldReturn401WhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -159,9 +159,9 @@ class AdminControllerTest {
     }
 
     @Test
-    void shouldReturn403OnMessageQueueWhenNotAdmin() throws Exception {
+    void shouldReturn401OnMessageQueueWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/admin/moderation/messages"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── PUT /api/v1/admin/moderation/messages/{messageId}/hide ──────────────
@@ -215,9 +215,9 @@ class AdminControllerTest {
     }
 
     @Test
-    void shouldReturn403OnModerationQueueWhenNotAdmin() throws Exception {
+    void shouldReturn401OnModerationQueueWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/admin/moderation/reviews"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     // ─── PUT /api/v1/admin/moderation/reviews/{id}/hide ──────────────────────

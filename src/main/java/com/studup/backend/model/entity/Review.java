@@ -42,10 +42,11 @@ public class Review {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "target_type", nullable = false, columnDefinition = "review_target_type")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS review_target_type)")
     private ReviewTargetType targetType;
 
-    // Note entre 1 et 5
-    @Column(nullable = false)
+    // Note entre 1 et 5 — SMALLINT en BDD (int2), Integer en Java
+    @Column(nullable = false, columnDefinition = "SMALLINT")
     private Integer rating;
 
     @Column(columnDefinition = "TEXT")

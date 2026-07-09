@@ -28,6 +28,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAut
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
+import com.studup.backend.service.EmailConfirmationService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -47,6 +48,9 @@ class CorsConfigTest {
 
     // AuthController est chargé par @WebMvcTest (tous les @RestController sont inclus).
     // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
+    @MockitoBean
+    private EmailConfirmationService emailConfirmationService;
+
     @MockitoBean
     private AuthService authService;
 

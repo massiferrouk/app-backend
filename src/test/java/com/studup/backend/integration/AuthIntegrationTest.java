@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Map;
 import java.util.UUID;
@@ -15,16 +16,20 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Flow E2E-01 : inscription → login → refresh token → logout
+ * Flow E2E-01 : inscription → confirmation email → login → refresh → logout
  *
  * Ces tests utilisent une vraie base PostgreSQL (Testcontainers) et un vrai Redis.
- * Flyway applique toutes les migrations V1→V21 avant les tests.
- * isVerified n'est pas requis pour le login — seul isActive=true l'est (valeur par défaut).
+ * Flyway applique toutes les migrations avant les tests.
+ * APP-82 : le login exige un email confirmé — le helper register() passe par
+ * le vrai endpoint /auth/confirm avec le token lu en base.
  */
 class AuthIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private TestRestTemplate restTemplate;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     // ─── inscription → HTTP 201 + email retourné ─────────────────────────────
 
@@ -125,6 +130,55 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
     }
 
+    // ─── confirmation email (APP-82) ─────────────────────────────────────────
+
+    @Test
+    void shouldRejectLoginWhenEmailNotConfirmed() {
+        // Inscription SANS confirmation
+        String email = "unconfirmed_" + UUID.randomUUID() + "@studup.fr";
+        RegisterRequest request = new RegisterRequest(
+                email, "Password123!", "Alice", "Martin", UserRole.ALTERNANT);
+        restTemplate.postForEntity("/api/v1/auth/register", request, Map.class);
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                "/api/v1/auth/login", new LoginRequest(email, "Password123!"), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().get("code")).isEqualTo("EMAIL_NOT_CONFIRMED");
+    }
+
+    @Test
+    void shouldConfirmEmailThenLogin() {
+        // register() confirme déjà via le vrai endpoint — si le login passe,
+        // c'est que le flux complet inscription → confirm → login fonctionne
+        String email = register();
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                "/api/v1/auth/login", new LoginRequest(email, "Password123!"), Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void shouldReject400OnUnknownConfirmToken() {
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                "/api/v1/auth/confirm?token=token-inexistant", null, Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().get("code")).isEqualTo("INVALID_TOKEN");
+    }
+
+    @Test
+    void shouldReject400OnAlreadyUsedConfirmToken() {
+        String email = register(); // consomme le token une première fois
+        String token = confirmationTokenFor(email);
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                "/api/v1/auth/confirm?token=" + token, null, Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     // ─── validation — password trop court → HTTP 400 ─────────────────────────
 
     @Test
@@ -141,12 +195,26 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
+    /// Inscrit un utilisateur ET confirme son email via le vrai endpoint
+    /// (le login exige un compte vérifié depuis APP-82)
     private String register() {
         String email = "user_" + UUID.randomUUID() + "@studup.fr";
         RegisterRequest request = new RegisterRequest(
                 email, "Password123!", "Alice", "Martin", UserRole.ALTERNANT);
         restTemplate.postForEntity("/api/v1/auth/register", request, Map.class);
+
+        String token = confirmationTokenFor(email);
+        restTemplate.postForEntity("/api/v1/auth/confirm?token=" + token, null, Map.class);
         return email;
+    }
+
+    /// Récupère le token de confirmation en base (le SMTP est désactivé en test)
+    private String confirmationTokenFor(String email) {
+        return jdbcTemplate.queryForObject(
+                "SELECT t.token FROM email_confirmation_tokens t " +
+                "JOIN users u ON u.id = t.user_id WHERE u.email = ? " +
+                "ORDER BY t.created_at DESC LIMIT 1",
+                String.class, email);
     }
 
     private Map login(String email) {

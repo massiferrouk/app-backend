@@ -57,6 +57,22 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of("UNAUTHORIZED", "Email ou mot de passe incorrect", request.getRequestURI()));
     }
 
+    // Token de confirmation email invalide, expiré ou déjà utilisé
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException ex,
+                                                            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of("INVALID_TOKEN", ex.getMessage(), request.getRequestURI()));
+    }
+
+    // Login refusé tant que l'email n'est pas confirmé
+    @ExceptionHandler(EmailNotConfirmedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotConfirmed(EmailNotConfirmedException ex,
+                                                                 HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of("EMAIL_NOT_CONFIRMED", ex.getMessage(), request.getRequestURI()));
+    }
+
     // Compte désactivé ou suspendu
     @ExceptionHandler(LockedException.class)
     public ResponseEntity<ErrorResponse> handleLocked(LockedException ex, HttpServletRequest request) {

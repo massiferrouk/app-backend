@@ -149,6 +149,9 @@ class SecurityOwnershipIntegrationTest extends AbstractIntegrationTest {
         RegisterRequest request = new RegisterRequest(
                 email, "Password123!", "Alice", "Martin", UserRole.ALTERNANT);
         restTemplate.postForEntity("/api/v1/auth/register", request, Map.class);
+        // APP-82 : le login exige un email confirmé — activation directe en base
+        // (le flux confirm complet est couvert par AuthIntegrationTest)
+        jdbcTemplate.update("UPDATE users SET is_verified = true WHERE email = ?", email);
         return email;
     }
 

@@ -1,6 +1,7 @@
 package com.studup.backend.service;
 
 import com.studup.backend.exception.DuplicateEmailException;
+import com.studup.backend.exception.EmailNotConfirmedException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.LoginRequest;
 import com.studup.backend.model.dto.request.RefreshRequest;
@@ -126,6 +127,7 @@ class AuthServiceTest {
         LoginRequest request = new LoginRequest("alice@yuniv.fr", "motdepasse123");
 
         User user = buildUser("alice@yuniv.fr");
+        user.setIsVerified(true); // APP-82 : le login exige un email confirmé
 
         // authenticationManager ne lève pas d'exception → credentials valides
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
@@ -142,6 +144,25 @@ class AuthServiceTest {
 
         // Vérifie que le refresh token a bien été sauvegardé en BDD
         verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void shouldRejectLoginWhenEmailNotConfirmed() {
+        LoginRequest request = new LoginRequest("alice@yuniv.fr", "motdepasse123");
+
+        // Compte existant mais email jamais confirmé (isVerified = false)
+        User unverifiedUser = buildUser("alice@yuniv.fr");
+
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(null);
+        when(userRepository.findByEmail("alice@yuniv.fr")).thenReturn(Optional.of(unverifiedUser));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(EmailNotConfirmedException.class);
+
+        // Aucun token ne doit être généré : credentials OK ne suffit pas
+        verify(jwtUtil, never()).generateAccessToken(any(), anyString(), anyString());
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test

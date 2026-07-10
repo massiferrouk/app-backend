@@ -160,6 +160,8 @@ class MessageModerationIntegrationTest extends AbstractIntegrationTest {
     private void registerUser(String email, String password, String firstName, String lastName, UserRole role) {
         RegisterRequest request = new RegisterRequest(email, password, firstName, lastName, role);
         restTemplate.postForEntity("/api/v1/auth/register", request, Map.class);
+        // APP-82 : le login exige un email confirme — activation directe en base
+        jdbcTemplate.update("UPDATE users SET is_verified = true WHERE email = ?", email);
     }
 
     private String loginAndGetToken(String email, String password) {

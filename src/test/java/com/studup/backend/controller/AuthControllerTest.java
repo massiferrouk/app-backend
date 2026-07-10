@@ -12,7 +12,9 @@ import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
+import com.studup.backend.exception.InvalidTokenException;
 import com.studup.backend.service.AuthService;
+import com.studup.backend.service.EmailConfirmationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +52,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private EmailConfirmationService emailConfirmationService;
 
     @MockitoBean
     private JwtUtil jwtUtil;
@@ -134,6 +139,33 @@ class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"))
                 .andExpect(jsonPath("$.message").value("Un compte existe déjà avec cet email"));
+    }
+
+    // ─── Tests confirmation email (APP-82) ───────────────────────────────────
+
+    @Test
+    void shouldReturn200OnValidConfirmToken() throws Exception {
+        // Le service ne lève rien → confirmation OK
+        mockMvc.perform(post("/api/v1/auth/confirm").param("token", "token-valide"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void shouldReturn400OnInvalidConfirmToken() throws Exception {
+        org.mockito.Mockito.doThrow(new InvalidTokenException("Lien de confirmation invalide"))
+                .when(emailConfirmationService).confirmToken("token-bidon");
+
+        mockMvc.perform(post("/api/v1/auth/confirm").param("token", "token-bidon"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void shouldReturn400WhenConfirmTokenMissing() throws Exception {
+        // Pas de paramètre token → 400 automatique de Spring
+        mockMvc.perform(post("/api/v1/auth/confirm"))
+                .andExpect(status().isBadRequest());
     }
 
     // ─── Tests connexion ──────────────────────────────────────────────────────

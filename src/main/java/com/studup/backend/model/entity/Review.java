@@ -6,7 +6,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -45,7 +47,10 @@ public class Review {
     @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS review_target_type)")
     private ReviewTargetType targetType;
 
-    // Note entre 1 et 5 — SMALLINT en BDD (int2), Integer en Java
+    // Note entre 1 et 5 — SMALLINT en BDD (int2), Integer en Java.
+    // @JdbcTypeCode aligne le type JDBC attendu par Hibernate sur le
+    // SMALLINT réel de la colonne (sinon la validation de schéma échoue).
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(nullable = false, columnDefinition = "SMALLINT")
     private Integer rating;
 

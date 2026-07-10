@@ -1,6 +1,7 @@
 package com.studup.backend.service;
 
 import com.studup.backend.exception.DuplicateEmailException;
+import com.studup.backend.exception.EmailNotConfirmedException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.LoginRequest;
 import com.studup.backend.model.dto.request.RefreshRequest;
@@ -108,6 +109,11 @@ public class AuthService {
         // Si on arrive ici, les credentials sont valides
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new RuntimeException("User not found after authentication"));
+
+        // APP-82 : pas de JWT tant que l'email n'est pas confirmé (US-001)
+        if (!Boolean.TRUE.equals(user.getIsVerified())) {
+            throw new EmailNotConfirmedException();
+        }
 
         String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String rawRefreshToken = jwtUtil.generateRefreshToken(user.getId());

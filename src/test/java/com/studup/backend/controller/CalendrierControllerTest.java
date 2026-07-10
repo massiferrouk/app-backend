@@ -53,6 +53,45 @@ class CalendrierControllerTest {
     @MockitoBean private DisponibiliteService disponibiliteService;
     @MockitoBean private MatchingService matchingService;
 
+    // ─── GET /api/v1/calendrier/mes-semaines (APP-67) ────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithMySchedule() throws Exception {
+        UUID profileId = UUID.randomUUID();
+        var response = new com.studup.backend.model.dto.response.MesSemainesResponse(
+                profileId, "Paris", "Lyon",
+                com.studup.backend.model.enums.RythmeAlternance.SEMAINE_3_1,
+                List.of(new AlternanceScheduleResponse(
+                        UUID.randomUUID(), LocalDate.of(2026, 7, 13), "A", false, null)));
+
+        when(calendrierService.getMesSemaines("alice@studup.fr")).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/calendrier/mes-semaines"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profileId").value(profileId.toString()))
+                .andExpect(jsonPath("$.villeA").value("Paris"))
+                .andExpect(jsonPath("$.rythme").value("SEMAINE_3_1"))
+                .andExpect(jsonPath("$.semaines.length()").value(1))
+                .andExpect(jsonPath("$.semaines[0].label").value("A"));
+    }
+
+    @Test
+    @WithMockUser(username = "bob@studup.fr")
+    void shouldReturn404WhenNoProfileForMySchedule() throws Exception {
+        when(calendrierService.getMesSemaines("bob@studup.fr"))
+                .thenThrow(new ResourceNotFoundException("Profil alternant introuvable"));
+
+        mockMvc.perform(get("/api/v1/calendrier/mes-semaines"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturn401OnMyScheduleWhenNotAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/v1/calendrier/mes-semaines"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ─── GET /api/v1/calendrier/compatibilite ────────────────────────────────
 
     @Test

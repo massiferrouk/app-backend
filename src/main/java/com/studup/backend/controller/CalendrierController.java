@@ -4,6 +4,7 @@ import com.studup.backend.algorithm.SemaineCompatibilite;
 import com.studup.backend.model.dto.request.OverrideScheduleRequest;
 import com.studup.backend.model.dto.response.AlternanceScheduleResponse;
 import com.studup.backend.model.dto.response.IcalTokenResponse;
+import com.studup.backend.model.dto.response.MesSemainesResponse;
 import com.studup.backend.service.CalendrierService;
 import com.studup.backend.service.ICalExportService;
 import jakarta.validation.Valid;
@@ -29,6 +30,14 @@ public class CalendrierController {
     public CalendrierController(CalendrierService calendrierService, ICalExportService iCalExportService) {
         this.calendrierService = calendrierService;
         this.iCalExportService = iCalExportService;
+    }
+
+    // Retourne le calendrier d'alternance de l'utilisateur connecté (APP-67)
+    @GetMapping("/mes-semaines")
+    public ResponseEntity<MesSemainesResponse> getMesSemaines(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                calendrierService.getMesSemaines(userDetails.getUsername()));
     }
 
     // Retourne le calendrier de compatibilité colorisé entre deux alternants

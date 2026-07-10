@@ -6,6 +6,7 @@ import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.OverrideScheduleRequest;
 import com.studup.backend.model.dto.response.AlternanceScheduleResponse;
+import com.studup.backend.model.dto.response.MesSemainesResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.repository.AlternanceScheduleRepository;
@@ -59,6 +60,33 @@ public class CalendrierService {
         var schedulesB = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileB.getId());
 
         return calculator.calculate(profileA, profileB, schedulesA, schedulesB).semaines();
+    }
+
+    /**
+     * Retourne le calendrier d'alternance complet de l'utilisateur connecté,
+     * avec le contexte du profil (villes, rythme) pour l'affichage mobile (APP-67).
+     */
+    @Transactional(readOnly = true)
+    public MesSemainesResponse getMesSemaines(String userEmail) {
+        var user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        AlternantProfile profile = profileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Profil alternant introuvable — crée d'abord ton profil"));
+
+        var semaines = scheduleRepository
+                .findByProfileIdOrderBySemaineAsc(profile.getId())
+                .stream()
+                .map(AlternanceScheduleResponse::from)
+                .toList();
+
+        return new MesSemainesResponse(
+                profile.getId(),
+                profile.getVilleA(),
+                profile.getVilleB(),
+                profile.getRythme(),
+                semaines);
     }
 
     /**

@@ -44,6 +44,14 @@ public class LogementController {
         return ResponseEntity.ok(logementService.search(request));
     }
 
+    // Tous les logements de l'utilisateur connecté, brouillons inclus (APP-70)
+    @GetMapping("/mes-logements")
+    public ResponseEntity<List<LogementResponse>> getMesLogements(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                logementService.getMesLogements(userDetails.getUsername()));
+    }
+
     // Crée un logement en statut BROUILLON
     @PostMapping
     public ResponseEntity<LogementResponse> createLogement(

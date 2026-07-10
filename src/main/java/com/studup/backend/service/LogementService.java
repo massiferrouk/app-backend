@@ -165,6 +165,20 @@ public class LogementService {
         return uploadedUrls;
     }
 
+    /**
+     * Tous les logements de l'utilisateur connecté, quel que soit leur
+     * statut (BROUILLON inclus) — pour l'écran "Mes logements" (APP-70).
+     */
+    @Transactional(readOnly = true)
+    public List<LogementResponse> getMesLogements(String email) {
+        User owner = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        return logementRepository.findByOwnerId(owner.getId()).stream()
+                .map(l -> LogementResponse.from(l, getPhotoUrls(l.getId())))
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public LogementResponse getLogement(UUID logementId) {
         Logement logement = logementRepository.findById(logementId)

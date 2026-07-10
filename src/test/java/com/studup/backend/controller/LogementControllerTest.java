@@ -123,6 +123,26 @@ class LogementControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
 
+    // ─── GET /api/v1/logements/mes-logements (APP-70) ────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithMyLogementsIncludingDrafts() throws Exception {
+        when(logementService.getMesLogements("alice@studup.fr"))
+                .thenReturn(List.of(fakeResponse()));
+
+        mockMvc.perform(get("/api/v1/logements/mes-logements"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].statut").value("BROUILLON"));
+    }
+
+    @Test
+    void shouldReturn401OnMyLogementsWhenNotAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/v1/logements/mes-logements"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ─── POST /api/v1/logements ───────────────────────────────────────────────
 
     @Test

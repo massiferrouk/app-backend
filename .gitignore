@@ -34,3 +34,5 @@ build/
 
 # Contexte Claude Code — fichier local, non versionné
 CLAUDE.md
+# Dossier de travail Claude Code
+.claude/

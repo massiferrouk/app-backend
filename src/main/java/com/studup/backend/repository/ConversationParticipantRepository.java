@@ -14,4 +14,7 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
     List<ConversationParticipant> findByConversationId(UUID conversationId);
 
     Optional<ConversationParticipant> findByConversationIdAndUserId(UUID conversationId, UUID userId);
+
+    // Toutes les conversations auxquelles participe un utilisateur (APP-75)
+    List<ConversationParticipant> findByUserId(UUID userId);
 }

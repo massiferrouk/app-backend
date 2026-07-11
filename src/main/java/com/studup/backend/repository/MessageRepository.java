@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -25,4 +26,10 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             AND m.isRead = false
             """)
     long countUnreadForUser(@Param("userId") UUID userId);
+
+    // Dernier message d'une conversation — pour l'aperçu de la liste (APP-75)
+    Optional<Message> findTopByConversationIdOrderByCreatedAtDesc(UUID conversationId);
+
+    // Messages non lus d'une conversation qui ne viennent pas de moi (APP-75)
+    long countByConversationIdAndSenderIdNotAndIsReadFalse(UUID conversationId, UUID senderId);
 }

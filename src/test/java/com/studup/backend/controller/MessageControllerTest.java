@@ -113,6 +113,32 @@ class MessageControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // ─── GET /conversations (APP-75) ─────────────────────────────────────────
+
+    @Test
+    @WithMockUser(username = "alice@studup.fr")
+    void shouldReturn200WithMyConversations() throws Exception {
+        var summary = new com.studup.backend.model.dto.response.ConversationSummaryResponse(
+                UUID.randomUUID(), UUID.randomUUID(), "Thomas D.",
+                "Salut, ton studio est libre en mars ?",
+                java.time.OffsetDateTime.now(), 2L);
+
+        when(messageService.getMesConversations("alice@studup.fr"))
+                .thenReturn(java.util.List.of(summary));
+
+        mockMvc.perform(get("/api/v1/messages/conversations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].partnerName").value("Thomas D."))
+                .andExpect(jsonPath("$[0].unreadCount").value(2));
+    }
+
+    @Test
+    void shouldReturn401OnConversationsWhenNotAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/v1/messages/conversations"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ─── GET /{conversationId} ────────────────────────────────────────────────
 
     @Test

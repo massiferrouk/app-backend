@@ -2,6 +2,7 @@ package com.studup.backend.service;
 
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
+import com.studup.backend.model.dto.response.ConversationSummaryResponse;
 import com.studup.backend.model.dto.response.MessageResponse;
 import com.studup.backend.model.entity.Conversation;
 import com.studup.backend.model.entity.ConversationParticipant;
@@ -18,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -75,6 +78,53 @@ public class MessageService {
                 "/topic/conversation/" + conversation.getId(), response);
 
         return response;
+    }
+
+    /**
+     * Liste des conversations de l'utilisateur connecté, triées par
+     * activité récente, avec aperçu du dernier message et compteur
+     * de non-lus (APP-75).
+     */
+    @Transactional(readOnly = true)
+    public List<ConversationSummaryResponse> getMesConversations(String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        return participantRepository.findByUserId(user.getId()).stream()
+                .map(cp -> toSummary(cp.getConversationId(), user.getId()))
+                .sorted(Comparator.comparing(
+                        ConversationSummaryResponse::lastMessageAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    private ConversationSummaryResponse toSummary(UUID conversationId, UUID myUserId) {
+        // L'autre participant (conversations à 2 uniquement dans cette version)
+        User partner = participantRepository.findByConversationId(conversationId).stream()
+                .filter(p -> !p.getUserId().equals(myUserId))
+                .findFirst()
+                .flatMap(p -> userRepository.findById(p.getUserId()))
+                .orElse(null);
+
+        // Nom abrégé — pas de nom complet dans les listes
+        String partnerName = partner == null
+                ? "Utilisateur"
+                : partner.getFirstName() + " " + partner.getLastName().charAt(0) + ".";
+
+        Message lastMessage = messageRepository
+                .findTopByConversationIdOrderByCreatedAtDesc(conversationId)
+                .orElse(null);
+
+        long unread = messageRepository
+                .countByConversationIdAndSenderIdNotAndIsReadFalse(conversationId, myUserId);
+
+        return new ConversationSummaryResponse(
+                conversationId,
+                partner == null ? null : partner.getId(),
+                partnerName,
+                lastMessage == null ? "" : lastMessage.getContent(),
+                lastMessage == null ? null : lastMessage.getCreatedAt(),
+                unread);
     }
 
     // Historique paginé d'une conversation (50 messages par page)

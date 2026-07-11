@@ -4,6 +4,7 @@ import com.studup.backend.model.dto.request.ReportMessageRequest;
 import com.studup.backend.model.dto.request.SendMessageRequest;
 import com.studup.backend.model.dto.response.MessagePhotoResponse;
 import com.studup.backend.model.dto.response.MessageReportResponse;
+import com.studup.backend.model.dto.response.ConversationSummaryResponse;
 import com.studup.backend.model.dto.response.MessageResponse;
 import com.studup.backend.service.MediaMessageService;
 import com.studup.backend.service.MessageService;
@@ -51,6 +52,14 @@ public class MessageController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageService.sendMessage(
                         userDetails.getUsername(), receiverId, request.content()));
+    }
+
+    // Liste des conversations de l'utilisateur connecté (APP-75)
+    @GetMapping("/conversations")
+    public ResponseEntity<List<ConversationSummaryResponse>> getMesConversations(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                messageService.getMesConversations(userDetails.getUsername()));
     }
 
     // Historique paginé d'une conversation (50 messages par page, plus récents en premier)

@@ -34,6 +34,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAut
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import com.studup.backend.repository.UserRepository;
 import com.studup.backend.service.EmailConfirmationService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -61,6 +62,10 @@ class RateLimitingTest {
 
     @MockitoBean
     private EmailConfirmationService emailConfirmationService;
+
+    // Exigé par UserController (APP-78) — les @WebMvcTest larges chargent tous les controllers
+    @MockitoBean
+    private UserRepository userRepository;
 
     @MockitoBean
     private AuthService authService;

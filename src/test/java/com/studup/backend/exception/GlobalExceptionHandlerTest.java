@@ -28,6 +28,7 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAut
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import com.studup.backend.repository.UserRepository;
 import com.studup.backend.service.EmailConfirmationService;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -49,6 +50,10 @@ class GlobalExceptionHandlerTest {
     // On fournit un mock d'AuthService pour satisfaire sa dépendance — ce test ne s'en sert pas.
     @MockitoBean
     private EmailConfirmationService emailConfirmationService;
+
+    // Exigé par UserController (APP-78) — les @WebMvcTest larges chargent tous les controllers
+    @MockitoBean
+    private UserRepository userRepository;
 
     @MockitoBean
     private AuthService authService;

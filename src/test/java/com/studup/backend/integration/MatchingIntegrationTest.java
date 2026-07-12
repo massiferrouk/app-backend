@@ -138,6 +138,23 @@ class MatchingIntegrationTest extends AbstractIntegrationTest {
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
+    @Test
+    @Transactional
+    void shouldPreselectCandidatesIgnoringCityCase() {
+        // APP-92 : villes saisies en casses différentes ("Marseille"/"Paris"
+        // vs "paris"/"marseille") doivent quand même se présélectionner
+        AlternantProfile anna = buildProfile("Marseille", "Paris");
+        AlternantProfile bob = buildProfile("paris", "marseille");
+
+        // Bob cherche des candidats — Anna doit sortir malgré la casse différente
+        List<AlternantProfile> candidates = profileRepository.findCandidatesWithSharedCity(
+                bob.getId(), bob.getVilleA(), bob.getVilleB());
+
+        assertThat(candidates)
+                .extracting(AlternantProfile::getId)
+                .contains(anna.getId());
+    }
+
     private AlternantProfile buildProfile(String villeA, String villeB) {
         User user = userRepository.save(User.builder()
                 .email("user_" + UUID.randomUUID() + "@studup.fr")

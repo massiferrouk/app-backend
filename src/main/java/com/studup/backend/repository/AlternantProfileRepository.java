@@ -17,14 +17,16 @@ public interface AlternantProfileRepository extends JpaRepository<AlternantProfi
 
     Optional<AlternantProfile> findByUserId(UUID userId);
 
-    // Présélection : profils qui ont au moins une ville en commun avec les villes données
-    // Exclut le profil de l'utilisateur connecté lui-même
+    // Présélection : profils qui ont au moins une ville en commun avec les villes données.
+    // Exclut le profil de l'utilisateur connecté lui-même.
+    // APP-92 : comparaison insensible à la casse (LOWER des deux côtés) — cohérent
+    // avec le CompatibilityCalculator qui utilise equalsIgnoreCase.
     @Query("""
             SELECT p FROM AlternantProfile p
             WHERE p.id != :excludeProfileId
             AND (
-                p.villeA IN (:villeA, :villeB)
-                OR p.villeB IN (:villeA, :villeB)
+                LOWER(p.villeA) IN (LOWER(:villeA), LOWER(:villeB))
+                OR LOWER(p.villeB) IN (LOWER(:villeA), LOWER(:villeB))
             )
             """)
     List<AlternantProfile> findCandidatesWithSharedCity(

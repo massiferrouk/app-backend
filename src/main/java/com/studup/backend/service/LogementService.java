@@ -212,13 +212,18 @@ public class LogementService {
                     + request.villeAssociee() + " (" + villeAttendue + ") dans votre profil");
         }
 
-        // Vérifie qu'il n'existe pas déjà un logement associé à cette ville pour cet alternant
-        logementRepository.findByOwnerIdAndVilleAssociee(owner.getId(), request.villeAssociee())
-                .filter(existant -> !existant.getId().equals(logementId))
-                .ifPresent(existant -> {
-                    throw new org.springframework.dao.DuplicateKeyException(
-                            "Vous avez déjà un logement associé à " + request.villeAssociee());
-                });
+        // Vérifie qu'il n'existe pas déjà un logement associé à cette ville pour cet alternant.
+        // APP-91 : filtrage en mémoire — la colonne ville_associee est un ENUM natif
+        // PostgreSQL, une comparaison SQL "WHERE ville_associee = ?" (string) échoue
+        // (operator does not exist). La lecture de la colonne, elle, fonctionne.
+        boolean villeDejaOccupee = logementRepository.findByOwnerId(owner.getId()).stream()
+                .anyMatch(l -> !l.getId().equals(logementId)
+                        && request.villeAssociee().equals(l.getVilleAssociee()));
+        if (villeDejaOccupee) {
+            // IllegalStateException → 409 CONFLICT via le GlobalExceptionHandler
+            throw new IllegalStateException(
+                    "Vous avez déjà un logement associé à " + request.villeAssociee());
+        }
 
         logement.setVilleAssociee(request.villeAssociee());
         logement = logementRepository.save(logement);

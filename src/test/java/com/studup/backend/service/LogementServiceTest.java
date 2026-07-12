@@ -291,8 +291,9 @@ class LogementServiceTest {
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
         when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.of(profile));
-        when(logementRepository.findByOwnerIdAndVilleAssociee(fakeOwner.getId(), VilleAssociee.VILLE_A))
-                .thenReturn(Optional.empty());
+        // APP-91 : check anti-doublon désormais en mémoire via findByOwnerId
+        when(logementRepository.findByOwnerId(fakeOwner.getId()))
+                .thenReturn(List.of(fakeLogement));
         when(logementRepository.save(any(Logement.class))).thenAnswer(inv -> inv.getArgument(0));
         when(photoRepository.findByLogementIdOrderByOrdreAsc(any())).thenReturn(List.of());
 
@@ -347,13 +348,15 @@ class LogementServiceTest {
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
         when(alternantProfileRepository.findByUserId(fakeOwner.getId())).thenReturn(Optional.of(profile));
-        when(logementRepository.findByOwnerIdAndVilleAssociee(fakeOwner.getId(), VilleAssociee.VILLE_A))
-                .thenReturn(Optional.of(autreLogement));
+        // APP-91 : un autre logement occupe déjà VILLE_A (filtrage en mémoire)
+        when(logementRepository.findByOwnerId(fakeOwner.getId()))
+                .thenReturn(List.of(fakeLogement, autreLogement));
 
         assertThatThrownBy(() -> logementService.associerVille(
                 "pierre@studup.fr", fakeLogement.getId(),
                 new AssocierVilleRequest(VilleAssociee.VILLE_A)))
-                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("déjà un logement associé");
     }
 
     @Test

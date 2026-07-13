@@ -5,11 +5,13 @@ import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AccordRequest;
 import com.studup.backend.model.dto.response.AccordResponse;
 import com.studup.backend.model.entity.Accord;
+import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
 import com.studup.backend.model.enums.AccordType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
+import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,7 @@ class AccordServiceTest {
 
     @Mock private AccordRepository accordRepository;
     @Mock private UserRepository userRepository;
+    @Mock private AlternantProfileRepository profileRepository;
 
     @InjectMocks
     private AccordService accordService;
@@ -91,6 +94,40 @@ class AccordServiceTest {
         assertThat(response.statut()).isEqualTo(AccordStatut.EN_ATTENTE);
         assertThat(response.initiatorId()).isEqualTo(initiator.getId());
         assertThat(response.receiverId()).isEqualTo(receiver.getId());
+    }
+
+    @Test
+    void shouldDeriveCommonPeriodWhenNoDatesProvided() {
+        // Aucune date fournie → le backend calcule la période commune des
+        // deux alternances : début = max des débuts, fin = min des fins.
+        AccordRequest request = new AccordRequest(
+                receiver.getId(), AccordType.ECHANGE_TOTAL,
+                null, null,                       // pas de dates saisies
+                UUID.randomUUID(), UUID.randomUUID(), null, null
+        );
+
+        AlternantProfile initiatorProfile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(initiator)
+                .villeA("Paris").villeB("Marseille")
+                .dateDebut(LocalDate.of(2026, 1, 1)).dateFin(LocalDate.of(2026, 12, 31))
+                .build();
+        AlternantProfile receiverProfile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(receiver)
+                .villeA("Marseille").villeB("Paris")
+                .dateDebut(LocalDate.of(2026, 3, 1)).dateFin(LocalDate.of(2026, 10, 31))
+                .build();
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(initiator));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(profileRepository.findByUserId(initiator.getId())).thenReturn(Optional.of(initiatorProfile));
+        when(profileRepository.findByUserId(receiver.getId())).thenReturn(Optional.of(receiverProfile));
+        when(accordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AccordResponse response = accordService.createAccord("alice@studup.fr", request);
+
+        // Intersection : 1er mars → 31 oct
+        assertThat(response.dateDebut()).isEqualTo(LocalDate.of(2026, 3, 1));
+        assertThat(response.dateFin()).isEqualTo(LocalDate.of(2026, 10, 31));
     }
 
     @Test

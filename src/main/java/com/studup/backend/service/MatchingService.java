@@ -12,8 +12,12 @@ import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.dto.response.PartialExchangeResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.Logement;
+import com.studup.backend.model.enums.AccordType;
+import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +34,7 @@ public class MatchingService {
     private final AlternantProfileRepository profileRepository;
     private final AlternanceScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
+    private final LogementRepository logementRepository;
     private final CompatibilityCalculator calculator;
     private final PartialExchangeOptimizer partialExchangeOptimizer;
     private final ColocationMatcher colocationMatcher;
@@ -37,12 +42,14 @@ public class MatchingService {
     public MatchingService(AlternantProfileRepository profileRepository,
                            AlternanceScheduleRepository scheduleRepository,
                            UserRepository userRepository,
+                           LogementRepository logementRepository,
                            CompatibilityCalculator calculator,
                            PartialExchangeOptimizer partialExchangeOptimizer,
                            ColocationMatcher colocationMatcher) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
+        this.logementRepository = logementRepository;
         this.calculator = calculator;
         this.partialExchangeOptimizer = partialExchangeOptimizer;
         this.colocationMatcher = colocationMatcher;
@@ -68,6 +75,10 @@ public class MatchingService {
         List<AlternanceSchedule> mySchedules = scheduleRepository
                 .findByProfileIdOrderBySemaineAsc(myProfile.getId());
 
+        // Logement publié et associé de l'utilisateur connecté (initiateur).
+        // Calculé une seule fois — il est le même pour tous les candidats.
+        UUID myLogementId = findLogementPublieAssocie(myProfile.getUser().getId());
+
         return candidates.stream()
                 .map(candidate -> {
                     List<AlternanceSchedule> candidateSchedules = scheduleRepository
@@ -76,7 +87,16 @@ public class MatchingService {
                     MatchingResult result = calculator.calculate(
                             myProfile, candidate, mySchedules, candidateSchedules);
 
-                    return MatchingSuggestionResponse.from(candidate, result);
+                    UUID candidateLogementId =
+                            findLogementPublieAssocie(candidate.getUser().getId());
+
+                    // Match ACTIF = un accord est signable immédiatement.
+                    // Pour un échange, il faut que les DEUX aient publié leur logement.
+                    boolean isMatchActif = isMatchActif(
+                            result.typePropose(), myLogementId, candidateLogementId);
+
+                    return MatchingSuggestionResponse.from(
+                            candidate, result, isMatchActif, myLogementId, candidateLogementId);
                 })
                 // Filtre les profils sans aucune compatibilité (typePropose null)
                 .filter(s -> s.typePropose() != null)
@@ -126,5 +146,38 @@ public class MatchingService {
                 profileA, profileB, schedulesA, schedulesB, null, null);
 
         return ColocationResponse.from(proposal);
+    }
+
+    // ─── Méthodes privées ─────────────────────────────────────────────────────
+
+    /**
+     * Retourne l'ID du premier logement PUBLIÉ (statut ACTIF) et associé à une
+     * ville de l'alternant, ou null s'il n'en a pas encore publié.
+     *
+     * On charge tous les logements du propriétaire puis on filtre en mémoire :
+     * les colonnes statut et ville_associee sont des ENUM PostgreSQL natifs avec
+     * @ColumnTransformer en écriture seule — une requête dérivée
+     * (WHERE statut = ?) provoquerait l'erreur SQL 42883 (cf. APP-91).
+     */
+    private UUID findLogementPublieAssocie(UUID ownerId) {
+        return logementRepository.findByOwnerId(ownerId).stream()
+                .filter(l -> l.getStatut() == LogementStatut.ACTIF)
+                .filter(l -> l.getVilleAssociee() != null)
+                .map(Logement::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Un match est ACTIF quand un accord peut être signé immédiatement.
+     * Pour un échange (total ou partiel), les deux alternants doivent avoir
+     * publié et associé leur logement. Sinon c'est un match potentiel.
+     */
+    private boolean isMatchActif(AccordType type, UUID myLogementId, UUID candidateLogementId) {
+        if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
+            return myLogementId != null && candidateLogementId != null;
+        }
+        // Colocation et autres types : au moins un logement disponible côté candidat
+        return candidateLogementId != null;
     }
 }

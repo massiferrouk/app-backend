@@ -14,6 +14,7 @@ import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class MatchingServiceTest {
     @Mock private AlternantProfileRepository profileRepository;
     @Mock private AlternanceScheduleRepository scheduleRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LogementRepository logementRepository;
     @Mock private CompatibilityCalculator calculator;
     @Mock private PartialExchangeOptimizer partialExchangeOptimizer;
     @Mock private ColocationMatcher colocationMatcher;

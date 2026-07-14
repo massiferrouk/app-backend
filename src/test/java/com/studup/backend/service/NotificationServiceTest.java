@@ -76,9 +76,8 @@ class NotificationServiceTest {
         when(templateService.buildTemplate(eq(NotificationType.NOUVEAU_MESSAGE), any()))
                 .thenReturn(new NotificationTemplateService.NotificationTemplate("Titre", "Corps"));
         when(notificationRepository.save(any())).thenReturn(notification);
-        when(preferenceRepository.findByUserIdAndNotificationTypeAndChannel(
-                user.getId(), NotificationType.NOUVEAU_MESSAGE, NotificationChannel.PUSH))
-                .thenReturn(Optional.of(pref));
+        when(preferenceRepository.findByUserId(user.getId()))
+                .thenReturn(List.of(pref));
 
         notificationService.notify(user.getId(), NotificationType.NOUVEAU_MESSAGE,
                 Map.of("prenom", "Bob"), "messages/123");
@@ -96,8 +95,8 @@ class NotificationServiceTest {
                 .thenReturn(new NotificationTemplateService.NotificationTemplate("Titre", "Corps"));
         when(notificationRepository.save(any())).thenReturn(notification);
         // Pas de préférence enregistrée → défaut = activé
-        when(preferenceRepository.findByUserIdAndNotificationTypeAndChannel(any(), any(), any()))
-                .thenReturn(Optional.empty());
+        when(preferenceRepository.findByUserId(any()))
+                .thenReturn(List.of());
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         when(fcmService.sendNotification(any(), any(), any(), any())).thenReturn(true);
 
@@ -114,8 +113,8 @@ class NotificationServiceTest {
         when(templateService.buildTemplate(any(), any()))
                 .thenReturn(new NotificationTemplateService.NotificationTemplate("Titre", "Corps"));
         when(notificationRepository.save(any())).thenReturn(notification);
-        when(preferenceRepository.findByUserIdAndNotificationTypeAndChannel(any(), any(), any()))
-                .thenReturn(Optional.empty());
+        when(preferenceRepository.findByUserId(any()))
+                .thenReturn(List.of());
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
         // Firebase retourne false → token invalide
         when(fcmService.sendNotification(any(), any(), any(), any())).thenReturn(false);
@@ -133,9 +132,8 @@ class NotificationServiceTest {
     @Test
     void shouldUpdatePreference() {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(user));
-        when(preferenceRepository.findByUserIdAndNotificationTypeAndChannel(
-                user.getId(), NotificationType.NOUVEAU_MESSAGE, NotificationChannel.PUSH))
-                .thenReturn(Optional.empty());
+        when(preferenceRepository.findByUserId(user.getId()))
+                .thenReturn(List.of());
         NotificationPreference saved = NotificationPreference.builder()
                 .id(UUID.randomUUID()).userId(user.getId())
                 .notificationType(NotificationType.NOUVEAU_MESSAGE)

@@ -9,6 +9,7 @@ import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
 import com.studup.backend.model.enums.AccordType;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
@@ -32,6 +33,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +43,7 @@ class AccordServiceTest {
     @Mock private AccordRepository accordRepository;
     @Mock private UserRepository userRepository;
     @Mock private AlternantProfileRepository profileRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private AccordService accordService;
@@ -145,6 +149,36 @@ class AccordServiceTest {
                 .hasMessageContaining("vous-même");
     }
 
+    // ─── Détail (getAccord) ────────────────────────────────────────────────────
+
+    @Test
+    void shouldReturnAccordDetailForParticipant() {
+        when(accordRepository.findById(accordEnAttente.getId()))
+                .thenReturn(Optional.of(accordEnAttente));
+        when(userRepository.findByEmail("bob@studup.fr")).thenReturn(Optional.of(receiver));
+
+        AccordResponse response = accordService.getAccord(accordEnAttente.getId(), "bob@studup.fr");
+
+        assertThat(response.id()).isEqualTo(accordEnAttente.getId());
+    }
+
+    @Test
+    void shouldRejectAccordDetailForNonParticipant() {
+        User intrus = User.builder()
+                .id(UUID.randomUUID()).email("intrus@studup.fr")
+                .firstName("Intrus").lastName("X").role(UserRole.ALTERNANT)
+                .isVerified(true).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
+
+        when(accordRepository.findById(accordEnAttente.getId()))
+                .thenReturn(Optional.of(accordEnAttente));
+        when(userRepository.findByEmail("intrus@studup.fr")).thenReturn(Optional.of(intrus));
+
+        assertThatThrownBy(() -> accordService.getAccord(accordEnAttente.getId(), "intrus@studup.fr"))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("participant");
+    }
+
     // ─── Acceptation ──────────────────────────────────────────────────────────
 
     @Test
@@ -164,6 +198,13 @@ class AccordServiceTest {
         AccordResponse response = accordService.acceptAccord(accordEnAttente.getId(), "bob@studup.fr");
 
         assertThat(response.statut()).isEqualTo(AccordStatut.ACCEPTE);
+
+        // L'initiateur (Alice) doit être notifié de l'acceptation
+        verify(notificationService).notify(
+                eq(initiator.getId()),
+                eq(NotificationType.ACCORD_ACCEPTE),
+                any(),
+                any());
     }
 
     @Test

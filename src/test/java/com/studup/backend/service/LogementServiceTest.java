@@ -15,6 +15,7 @@ import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.model.enums.VilleAssociee;
+import com.studup.backend.repository.AccordRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.PhotoLogementRepository;
@@ -50,6 +51,7 @@ class LogementServiceTest {
     @Mock private PhotoLogementRepository photoRepository;
     @Mock private UserRepository userRepository;
     @Mock private AlternantProfileRepository alternantProfileRepository;
+    @Mock private AccordRepository accordRepository;
     @Mock private MinioService minioService;
     @Mock private GeocodingService geocodingService;
     @Mock private FileValidationService fileValidationService;
@@ -265,6 +267,114 @@ class LogementServiceTest {
                 "pierre@studup.fr", fakeLogement.getId(), List.of(file, file)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("10");
+    }
+
+    @Test
+    void shouldUploadWebpWithoutCompressionInsteadOfFailing() {
+        // WEBP n'est pas décodable par ImageIO : la compression doit échouer
+        // silencieusement et l'original être uploadé (pas de 500). Ici les octets
+        // ne sont pas un vrai WEBP → Thumbnails lève → on retombe sur l'original.
+        MockMultipartFile webp = new MockMultipartFile(
+                "file", "photo.webp", "image/webp", new byte[]{1, 2, 3, 4, 5}
+        );
+
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(photoRepository.countByLogementId(fakeLogement.getId())).thenReturn(0);
+        when(photoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(minioService.generatePresignedUrl(any())).thenReturn("https://minio/signed-url");
+
+        List<String> urls = logementService.addPhotos(
+                "pierre@studup.fr", fakeLogement.getId(), List.of(webp));
+
+        assertThat(urls).containsExactly("https://minio/signed-url");
+    }
+
+    // ─── Modification ─────────────────────────────────────────────────────────
+
+    @Test
+    void shouldUpdateOwnLogement() {
+        CreateLogementRequest request = new CreateLogementRequest(
+                "2 avenue Neuve", "Lyon", "69002", LogementType.T2,
+                new BigDecimal("40.0"), 2, new BigDecimal("750.0"),
+                new BigDecimal("60.0"), "Rénové", new String[]{"wifi"}, true);
+
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsByLogementAIdOrLogementBId(
+                fakeLogement.getId(), fakeLogement.getId())).thenReturn(false);
+        when(geocodingService.geocode(any(), any(), any())).thenReturn(null);
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(fakeLogement.getId()))
+                .thenReturn(List.of());
+        when(logementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LogementResponse response = logementService.updateLogement(
+                "pierre@studup.fr", fakeLogement.getId(), request);
+
+        assertThat(response.ville()).isEqualTo("Lyon");
+        assertThat(response.loyer()).isEqualByComparingTo("750.0");
+    }
+
+    @Test
+    void shouldRejectUpdateWhenLinkedToAccord() {
+        CreateLogementRequest request = new CreateLogementRequest(
+                "2 avenue Neuve", "Lyon", "69002", LogementType.T2,
+                new BigDecimal("40.0"), 2, new BigDecimal("750.0"),
+                new BigDecimal("60.0"), null, null, true);
+
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsByLogementAIdOrLogementBId(
+                fakeLogement.getId(), fakeLogement.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> logementService.updateLogement(
+                "pierre@studup.fr", fakeLogement.getId(), request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("accord");
+
+        verify(logementRepository, never()).save(any());
+    }
+
+    // ─── Suppression ──────────────────────────────────────────────────────────
+
+    @Test
+    void shouldDeleteOwnLogement() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsByLogementAIdOrLogementBId(
+                fakeLogement.getId(), fakeLogement.getId())).thenReturn(false);
+        when(photoRepository.findFileKeysByLogementId(fakeLogement.getId()))
+                .thenReturn(List.of());
+
+        logementService.deleteLogement("pierre@studup.fr", fakeLogement.getId());
+
+        verify(logementRepository).deleteById(fakeLogement.getId());
+    }
+
+    @Test
+    void shouldRejectDeleteWhenLinkedToAccord() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsByLogementAIdOrLogementBId(
+                fakeLogement.getId(), fakeLogement.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> logementService.deleteLogement(
+                "pierre@studup.fr", fakeLogement.getId()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("accord");
+
+        verify(logementRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void shouldRejectDeleteByNonOwner() {
+        User autre = User.builder().id(UUID.randomUUID()).email("autre@studup.fr").build();
+        when(userRepository.findByEmail("autre@studup.fr")).thenReturn(Optional.of(autre));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+
+        assertThatThrownBy(() -> logementService.deleteLogement(
+                "autre@studup.fr", fakeLogement.getId()))
+                .isInstanceOf(UnauthorizedException.class);
     }
 
     @Test

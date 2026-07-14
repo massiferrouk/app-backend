@@ -15,7 +15,9 @@ public class LogementSpecification {
 
     private LogementSpecification() {}
 
-    // Toujours appliqué : on ne montre que les logements publiés
+    // Toujours appliqué : on ne montre que les logements publiés.
+    // statut/type sont mappés en @JdbcTypeCode(NAMED_ENUM) sur l'entité, donc
+    // la comparaison directe fonctionne (le paramètre est lié comme enum natif).
     public static Specification<Logement> estActif() {
         return (root, query, cb) -> cb.equal(root.get("statut"), LogementStatut.ACTIF);
     }

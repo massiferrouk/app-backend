@@ -102,4 +102,27 @@ public class LogementController {
         List<String> urls = logementService.addPhotos(userDetails.getUsername(), id, files);
         return ResponseEntity.status(HttpStatus.CREATED).body(urls);
     }
+
+    // Modification d'un logement (brouillon ou publié) — ownership vérifié
+    @PreAuthorize("@securityService.isLogementOwner(#id, authentication)")
+    @PutMapping("/{id}")
+    public ResponseEntity<LogementResponse> updateLogement(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable UUID id,
+            @Valid @RequestBody CreateLogementRequest request) {
+
+        return ResponseEntity.ok(
+                logementService.updateLogement(userDetails.getUsername(), id, request));
+    }
+
+    // Suppression d'un logement — ownership vérifié avant d'entrer dans la méthode
+    @PreAuthorize("@securityService.isLogementOwner(#id, authentication)")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteLogement(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable UUID id) {
+
+        logementService.deleteLogement(userDetails.getUsername(), id);
+        return ResponseEntity.noContent().build();
+    }
 }

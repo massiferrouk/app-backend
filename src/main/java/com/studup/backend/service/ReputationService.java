@@ -89,9 +89,11 @@ public class ReputationService {
      */
     @Transactional(readOnly = true)
     public ReputationScoreResponse getScore(UUID userId) {
+        // Un utilisateur sans aucun avis n'a pas encore de ligne reputation_scores :
+        // on renvoie un score « vierge » (0 avis) plutôt qu'un 404, sinon le détail
+        // d'un logement d'un nouveau propriétaire casse côté client.
         ReputationScore score = reputationRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Score de réputation introuvable pour l'utilisateur " + userId));
+                .orElse(ReputationScore.builder().userId(userId).build());
         return ReputationScoreResponse.from(score);
     }
 

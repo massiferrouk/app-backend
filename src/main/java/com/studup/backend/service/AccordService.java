@@ -8,6 +8,7 @@ import com.studup.backend.model.entity.Accord;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.repository.AccordRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.UserRepository;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,13 +28,16 @@ public class AccordService {
     private final AccordRepository accordRepository;
     private final UserRepository userRepository;
     private final AlternantProfileRepository profileRepository;
+    private final NotificationService notificationService;
 
     public AccordService(AccordRepository accordRepository,
                          UserRepository userRepository,
-                         AlternantProfileRepository profileRepository) {
+                         AlternantProfileRepository profileRepository,
+                         NotificationService notificationService) {
         this.accordRepository = accordRepository;
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
+        this.notificationService = notificationService;
     }
 
     // Crée un accord en statut EN_ATTENTE
@@ -46,7 +51,7 @@ public class AccordService {
         }
 
         // Vérifie que le destinataire existe
-        userRepository.findById(request.receiverId())
+        User receiver = userRepository.findById(request.receiverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Destinataire introuvable"));
 
         // Dates : soit fournies par le client, soit déduites de la période
@@ -66,7 +71,16 @@ public class AccordService {
                 .messageInitial(request.messageInitial())
                 .build();
 
-        return AccordResponse.from(accordRepository.save(accord));
+        Accord saved = accordRepository.save(accord);
+
+        // Notifie le destinataire qu'il a reçu une demande d'accord
+        notificationService.notify(
+                receiver.getId(),
+                NotificationType.DEMANDE_ACCORD,
+                Map.of("prenom", initiator.getFirstName()),
+                "accord/" + saved.getId());
+
+        return AccordResponse.from(saved, initiator.getFirstName(), receiver.getFirstName());
     }
 
     /** Période d'un accord — début et fin. */
@@ -125,7 +139,16 @@ public class AccordService {
         checkStatutEnAttente(accord);
 
         accord.setStatut(AccordStatut.ACCEPTE);
-        return AccordResponse.from(accordRepository.save(accord));
+        Accord saved = accordRepository.save(accord);
+
+        // Notifie l'initiateur que sa demande a été acceptée
+        notificationService.notify(
+                accord.getInitiatorId(),
+                NotificationType.ACCORD_ACCEPTE,
+                Map.of("prenom", user.getFirstName()),
+                "accord/" + accord.getId());
+
+        return toResponseWithNames(saved);
     }
 
     // Refuse un accord — uniquement le destinataire
@@ -140,7 +163,16 @@ public class AccordService {
         checkStatutEnAttente(accord);
 
         accord.setStatut(AccordStatut.REFUSE);
-        return AccordResponse.from(accordRepository.save(accord));
+        Accord saved = accordRepository.save(accord);
+
+        // Notifie l'initiateur que sa demande a été refusée
+        notificationService.notify(
+                accord.getInitiatorId(),
+                NotificationType.ACCORD_REFUSE,
+                Map.of("prenom", user.getFirstName()),
+                "accord/" + accord.getId());
+
+        return toResponseWithNames(saved);
     }
 
     // Annule un accord — initiateur ou destinataire, tant que EN_ATTENTE ou ACCEPTE
@@ -167,6 +199,23 @@ public class AccordService {
         return AccordResponse.from(accordRepository.save(accord));
     }
 
+    // Détail d'un accord — accessible uniquement aux deux participants
+    @Transactional(readOnly = true)
+    public AccordResponse getAccord(UUID accordId, String userEmail) {
+        Accord accord = getAccordOrThrow(accordId);
+        User user = getUserOrThrow(userEmail);
+
+        boolean estParticipant = accord.getInitiatorId().equals(user.getId())
+                || accord.getReceiverId().equals(user.getId());
+
+        // 403 (et pas 404) si l'accord existe mais n'appartient pas à l'utilisateur
+        if (!estParticipant) {
+            throw new UnauthorizedException("Vous n'êtes pas participant à cet accord");
+        }
+
+        return toResponseWithNames(accord);
+    }
+
     // Historique des accords de l'utilisateur connecté
     @Transactional(readOnly = true)
     public Page<AccordResponse> getMesAccords(String userEmail, Pageable pageable) {
@@ -185,6 +234,19 @@ public class AccordService {
     private User getUserOrThrow(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+    }
+
+    /**
+     * Construit la réponse en y ajoutant les prénoms des deux participants,
+     * pour que le frontend puisse afficher le nom du partenaire (bouton
+     * « Contacter ») sans requête supplémentaire.
+     */
+    private AccordResponse toResponseWithNames(Accord accord) {
+        String initiatorPrenom = userRepository.findById(accord.getInitiatorId())
+                .map(User::getFirstName).orElse(null);
+        String receiverPrenom = userRepository.findById(accord.getReceiverId())
+                .map(User::getFirstName).orElse(null);
+        return AccordResponse.from(accord, initiatorPrenom, receiverPrenom);
     }
 
     private void checkStatutEnAttente(Accord accord) {

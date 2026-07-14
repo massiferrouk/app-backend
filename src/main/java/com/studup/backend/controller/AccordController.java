@@ -34,6 +34,14 @@ public class AccordController {
                 .body(accordService.createAccord(userDetails.getUsername(), request));
     }
 
+    // Détail d'un accord (participants uniquement — 403 sinon)
+    @GetMapping("/{id}")
+    public ResponseEntity<AccordResponse> getAccord(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(accordService.getAccord(id, userDetails.getUsername()));
+    }
+
     // Historique des accords de l'utilisateur connecté
     @GetMapping("/mes-accords")
     public ResponseEntity<Page<AccordResponse>> getMesAccords(

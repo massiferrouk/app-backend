@@ -8,7 +8,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -47,9 +49,12 @@ public class Logement {
     @Column(precision = 9, scale = 6)
     private BigDecimal lng;
 
-    @Enumerated(EnumType.STRING)
+    // Mapping natif de l'ENUM PostgreSQL (Hibernate 6). Contrairement à
+    // @Enumerated(STRING)+@ColumnTransformer, NAMED_ENUM lie le paramètre comme
+    // le type enum natif : les comparaisons SQL (WHERE type = ?) fonctionnent
+    // (sinon erreur 42883 — cf. APP-91 / recherche de logements).
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "logement_type")
-    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS logement_type)")
     private LogementType type;
 
     @Column(precision = 6, scale = 2)
@@ -71,9 +76,8 @@ public class Logement {
     @Column(columnDefinition = "TEXT[]")
     private String[] equipements;
 
-    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "logement_statut")
-    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS logement_statut)")
     private LogementStatut statut;
 
     @Column(name = "is_verified", nullable = false)

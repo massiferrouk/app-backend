@@ -30,7 +30,10 @@ public record LogementResponse(
         Boolean isMeuble,
         VilleAssociee villeAssociee,
         List<String> photoUrls,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        // Prénom du propriétaire — permet au frontend d'afficher son nom
+        // (bouton « Contacter ») sans requête supplémentaire (relation déjà chargée).
+        String ownerPrenom
 ) {
     public static LogementResponse from(Logement logement, List<String> photoUrls) {
         return new LogementResponse(
@@ -53,7 +56,8 @@ public record LogementResponse(
                 logement.getIsMeuble(),
                 logement.getVilleAssociee(),
                 photoUrls,
-                logement.getCreatedAt()
+                logement.getCreatedAt(),
+                logement.getOwner().getFirstName()
         );
     }
 }

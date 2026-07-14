@@ -95,10 +95,27 @@ public class NotificationService {
 
     // Vérifie si l'utilisateur a activé les push pour ce type (défaut : activé)
     private boolean isPushEnabled(UUID userId, NotificationType type) {
-        Optional<NotificationPreference> pref = preferenceRepository
-                .findByUserIdAndNotificationTypeAndChannel(userId, type, NotificationChannel.PUSH);
         // Si aucune préférence enregistrée → on envoie (opt-out par défaut, pas opt-in)
-        return pref.map(NotificationPreference::getIsEnabled).orElse(true);
+        return findPreference(userId, type, NotificationChannel.PUSH)
+                .map(NotificationPreference::getIsEnabled).orElse(true);
+    }
+
+    /**
+     * Retrouve une préférence par (type, canal) en filtrant en mémoire.
+     *
+     * On NE fait PAS de requête dérivée du type
+     * findByUserIdAndNotificationTypeAndChannel : les colonnes notification_type
+     * et channel sont des ENUM PostgreSQL natifs avec @ColumnTransformer en
+     * écriture seule. Une comparaison SQL directe (WHERE notification_type = ?)
+     * provoque l'erreur 42883 « operator does not exist » (cf. APP-91).
+     * On charge donc toutes les préférences de l'utilisateur (filtre sur user_id
+     * uniquement) et on filtre côté Java.
+     */
+    private Optional<NotificationPreference> findPreference(
+            UUID userId, NotificationType type, NotificationChannel channel) {
+        return preferenceRepository.findByUserId(userId).stream()
+                .filter(p -> p.getNotificationType() == type && p.getChannel() == channel)
+                .findFirst();
     }
 
     // Récupère toutes les préférences d'un utilisateur
@@ -116,8 +133,7 @@ public class NotificationService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
-        NotificationPreference pref = preferenceRepository
-                .findByUserIdAndNotificationTypeAndChannel(user.getId(), type, channel)
+        NotificationPreference pref = findPreference(user.getId(), type, channel)
                 .orElse(NotificationPreference.builder()
                         .userId(user.getId())
                         .notificationType(type)
@@ -181,8 +197,8 @@ public class NotificationService {
     // Désactive le digest hebdomadaire par email — appelé depuis le lien de désabonnement
     @Transactional
     public void disableEmailDigest(UUID userId) {
-        NotificationPreference pref = preferenceRepository
-                .findByUserIdAndNotificationTypeAndChannel(userId, NotificationType.SYSTEME, NotificationChannel.EMAIL)
+        NotificationPreference pref = findPreference(
+                userId, NotificationType.SYSTEME, NotificationChannel.EMAIL)
                 .orElse(NotificationPreference.builder()
                         .userId(userId)
                         .notificationType(NotificationType.SYSTEME)

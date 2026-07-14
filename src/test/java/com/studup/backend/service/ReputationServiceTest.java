@@ -150,13 +150,18 @@ class ReputationServiceTest {
         verify(reputationRepository).save(any());
     }
 
-    // ─── shouldThrowWhenScoreNotFound ─────────────────────────────────────────
+    // ─── score vierge quand aucun avis ────────────────────────────────────────
 
     @Test
-    void shouldThrowWhenScoreNotFound() {
+    void shouldReturnEmptyScoreWhenNotFound() {
+        // Un utilisateur sans avis n'a pas de ligne reputation_scores :
+        // on renvoie un score vierge (0 avis) plutôt qu'une 404 (APP-96).
         when(reputationRepository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> reputationService.getScore(userId))
-                .isInstanceOf(ResourceNotFoundException.class);
+        ReputationScoreResponse response = reputationService.getScore(userId);
+
+        assertThat(response.userId()).isEqualTo(userId);
+        assertThat(response.totalReviews()).isZero();
+        assertThat(response.avgRating()).isEqualByComparingTo("0");
     }
 }

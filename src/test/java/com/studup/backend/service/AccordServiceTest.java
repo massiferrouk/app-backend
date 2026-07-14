@@ -5,11 +5,14 @@ import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AccordRequest;
 import com.studup.backend.model.dto.response.AccordResponse;
 import com.studup.backend.model.entity.Accord;
+import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
 import com.studup.backend.model.enums.AccordType;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
+import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +42,8 @@ class AccordServiceTest {
 
     @Mock private AccordRepository accordRepository;
     @Mock private UserRepository userRepository;
+    @Mock private AlternantProfileRepository profileRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private AccordService accordService;
@@ -94,6 +101,40 @@ class AccordServiceTest {
     }
 
     @Test
+    void shouldDeriveCommonPeriodWhenNoDatesProvided() {
+        // Aucune date fournie → le backend calcule la période commune des
+        // deux alternances : début = max des débuts, fin = min des fins.
+        AccordRequest request = new AccordRequest(
+                receiver.getId(), AccordType.ECHANGE_TOTAL,
+                null, null,                       // pas de dates saisies
+                UUID.randomUUID(), UUID.randomUUID(), null, null
+        );
+
+        AlternantProfile initiatorProfile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(initiator)
+                .villeA("Paris").villeB("Marseille")
+                .dateDebut(LocalDate.of(2026, 1, 1)).dateFin(LocalDate.of(2026, 12, 31))
+                .build();
+        AlternantProfile receiverProfile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(receiver)
+                .villeA("Marseille").villeB("Paris")
+                .dateDebut(LocalDate.of(2026, 3, 1)).dateFin(LocalDate.of(2026, 10, 31))
+                .build();
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(initiator));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(profileRepository.findByUserId(initiator.getId())).thenReturn(Optional.of(initiatorProfile));
+        when(profileRepository.findByUserId(receiver.getId())).thenReturn(Optional.of(receiverProfile));
+        when(accordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AccordResponse response = accordService.createAccord("alice@studup.fr", request);
+
+        // Intersection : 1er mars → 31 oct
+        assertThat(response.dateDebut()).isEqualTo(LocalDate.of(2026, 3, 1));
+        assertThat(response.dateFin()).isEqualTo(LocalDate.of(2026, 10, 31));
+    }
+
+    @Test
     void shouldRejectAccordToSelf() {
         AccordRequest request = new AccordRequest(
                 initiator.getId(), AccordType.ECHANGE_TOTAL,
@@ -106,6 +147,36 @@ class AccordServiceTest {
         assertThatThrownBy(() -> accordService.createAccord("alice@studup.fr", request))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessageContaining("vous-même");
+    }
+
+    // ─── Détail (getAccord) ────────────────────────────────────────────────────
+
+    @Test
+    void shouldReturnAccordDetailForParticipant() {
+        when(accordRepository.findById(accordEnAttente.getId()))
+                .thenReturn(Optional.of(accordEnAttente));
+        when(userRepository.findByEmail("bob@studup.fr")).thenReturn(Optional.of(receiver));
+
+        AccordResponse response = accordService.getAccord(accordEnAttente.getId(), "bob@studup.fr");
+
+        assertThat(response.id()).isEqualTo(accordEnAttente.getId());
+    }
+
+    @Test
+    void shouldRejectAccordDetailForNonParticipant() {
+        User intrus = User.builder()
+                .id(UUID.randomUUID()).email("intrus@studup.fr")
+                .firstName("Intrus").lastName("X").role(UserRole.ALTERNANT)
+                .isVerified(true).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
+
+        when(accordRepository.findById(accordEnAttente.getId()))
+                .thenReturn(Optional.of(accordEnAttente));
+        when(userRepository.findByEmail("intrus@studup.fr")).thenReturn(Optional.of(intrus));
+
+        assertThatThrownBy(() -> accordService.getAccord(accordEnAttente.getId(), "intrus@studup.fr"))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("participant");
     }
 
     // ─── Acceptation ──────────────────────────────────────────────────────────
@@ -127,6 +198,13 @@ class AccordServiceTest {
         AccordResponse response = accordService.acceptAccord(accordEnAttente.getId(), "bob@studup.fr");
 
         assertThat(response.statut()).isEqualTo(AccordStatut.ACCEPTE);
+
+        // L'initiateur (Alice) doit être notifié de l'acceptation
+        verify(notificationService).notify(
+                eq(initiator.getId()),
+                eq(NotificationType.ACCORD_ACCEPTE),
+                any(),
+                any());
     }
 
     @Test

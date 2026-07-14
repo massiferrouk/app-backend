@@ -13,6 +13,7 @@ import com.studup.backend.model.entity.PhotoLogement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.VilleAssociee;
+import com.studup.backend.repository.AccordRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.LogementSpecification;
@@ -37,12 +38,16 @@ import java.util.UUID;
 @Service
 public class LogementService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(LogementService.class);
+
     private static final int MAX_PHOTOS = 10;
 
     private final LogementRepository logementRepository;
     private final PhotoLogementRepository photoRepository;
     private final UserRepository userRepository;
     private final AlternantProfileRepository alternantProfileRepository;
+    private final AccordRepository accordRepository;
     private final MinioService minioService;
     private final GeocodingService geocodingService;
     private final FileValidationService fileValidationService;
@@ -51,6 +56,7 @@ public class LogementService {
                            PhotoLogementRepository photoRepository,
                            UserRepository userRepository,
                            AlternantProfileRepository alternantProfileRepository,
+                           AccordRepository accordRepository,
                            MinioService minioService,
                            GeocodingService geocodingService,
                            FileValidationService fileValidationService) {
@@ -58,6 +64,7 @@ public class LogementService {
         this.photoRepository = photoRepository;
         this.userRepository = userRepository;
         this.alternantProfileRepository = alternantProfileRepository;
+        this.accordRepository = accordRepository;
         this.minioService = minioService;
         this.geocodingService = geocodingService;
         this.fileValidationService = fileValidationService;
@@ -94,6 +101,53 @@ public class LogementService {
 
         logement = logementRepository.save(logement);
         return LogementResponse.from(logement, List.of());
+    }
+
+    /**
+     * Met à jour un logement appartenant à l'utilisateur (brouillon ou publié).
+     * Interdit si le logement est engagé dans un accord : on ne modifie pas une
+     * annonce sur laquelle quelqu'un s'est déjà engagé (cohérent avec la
+     * suppression).
+     */
+    @Transactional
+    public LogementResponse updateLogement(String email, UUID logementId, CreateLogementRequest request) {
+        User owner = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        Logement logement = logementRepository.findById(logementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
+
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
+
+        if (accordRepository.existsByLogementAIdOrLogementBId(logementId, logementId)) {
+            throw new IllegalStateException(
+                    "Ce logement est lié à un accord et ne peut plus être modifié.");
+        }
+
+        logement.setAdresse(request.adresse());
+        logement.setVille(request.ville());
+        logement.setCodePostal(request.codePostal());
+        logement.setType(request.type());
+        logement.setSurface(request.surface());
+        logement.setNbPieces(request.nbPieces() != null ? request.nbPieces() : 1);
+        logement.setLoyer(request.loyer());
+        logement.setCharges(request.charges());
+        logement.setDescription(request.description());
+        logement.setEquipements(request.equipements());
+        logement.setIsMeuble(request.isMeuble() != null ? request.isMeuble() : true);
+
+        // Re-géocodage si l'adresse a changé — non bloquant
+        GeocodingService.Coordinates coords = geocodingService.geocode(
+                request.adresse(), request.ville(), request.codePostal());
+        if (coords != null) {
+            logement.setLat(coords.lat());
+            logement.setLng(coords.lng());
+        }
+
+        Logement saved = logementRepository.save(logement);
+        return LogementResponse.from(saved, getPhotoUrls(logementId));
     }
 
     @Transactional
@@ -163,6 +217,47 @@ public class LogementService {
         }
 
         return uploadedUrls;
+    }
+
+    /**
+     * Supprime un logement appartenant à l'utilisateur connecté (brouillon ou
+     * publié, quel que soit son rôle). Interdit si le logement est engagé dans
+     * un accord (contrainte d'intégrité + logique métier).
+     */
+    @Transactional
+    public void deleteLogement(String email, UUID logementId) {
+        User owner = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        Logement logement = logementRepository.findById(logementId)
+                .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
+
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
+
+        // Un logement engagé dans un accord ne peut pas être supprimé (FK + métier)
+        if (accordRepository.existsByLogementAIdOrLogementBId(logementId, logementId)) {
+            throw new IllegalStateException(
+                    "Ce logement est lié à un accord et ne peut pas être supprimé.");
+        }
+
+        // On récupère uniquement les clés MinIO (projection String, pas d'entités
+        // managées) AVANT la suppression — charger les entités PhotoLogement puis
+        // supprimer le logement (cascade DB) fait échouer le flush Hibernate.
+        List<String> fileKeys = photoRepository.findFileKeysByLogementId(logementId);
+
+        logementRepository.deleteById(logementId);
+
+        // Nettoyage MinIO best-effort APRÈS la suppression en base : un échec de
+        // stockage ne doit pas empêcher la suppression logique.
+        fileKeys.forEach(key -> {
+            try {
+                minioService.deleteFile(key);
+            } catch (Exception e) {
+                log.warn("Suppression MinIO échouée pour {} : {}", key, e.getMessage());
+            }
+        });
     }
 
     /**
@@ -238,17 +333,44 @@ public class LogementService {
                 .toList();
     }
 
+    /**
+     * URL signée de la photo de couverture (première photo) d'un logement,
+     * pour les listes/recherche. Retourne une liste de 0 ou 1 élément.
+     * On ne charge que la 1re clé (projection) et on génère une seule URL —
+     * la signature est un calcul local, pas d'appel réseau à MinIO.
+     */
+    private List<String> getCoverPhotoUrl(UUID logementId) {
+        return photoRepository.findFileKeysByLogementId(logementId).stream()
+                .findFirst()
+                .map(key -> List.of(minioService.generatePresignedUrl(key)))
+                .orElse(List.of());
+    }
+
     // Compresse l'image à 80% de qualité via Thumbnailator
     private byte[] compressImage(MultipartFile file) {
+        final byte[] original;
+        try {
+            original = file.getBytes();
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lecture de l'image : " + e.getMessage(), e);
+        }
+
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Thumbnails.of(file.getInputStream())
+            Thumbnails.of(new ByteArrayInputStream(original))
                     .scale(1.0)
                     .outputQuality(0.80)
                     .toOutputStream(out);
-            return out.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Erreur lors de la compression de l'image : " + e.getMessage(), e);
+            byte[] compressed = out.toByteArray();
+            // Certains formats produisent un flux vide : on garde alors l'original
+            return compressed.length > 0 ? compressed : original;
+        } catch (Exception e) {
+            // Format non décodable par ImageIO (ex: WEBP sans plugin natif) :
+            // la compression est une optimisation, pas une obligation → on
+            // uploade l'original tel quel plutôt que d'échouer en 500.
+            log.warn("Compression impossible pour {} ({}) — upload de l'original",
+                    file.getContentType(), e.getMessage());
+            return original;
         }
     }
 
@@ -299,7 +421,7 @@ public class LogementService {
         // Dans la liste de résultats, les photos ne sont pas chargées (perf)
         // Les URLs signées MinIO sont chargées uniquement sur le détail d'un logement
         List<LogementResponse> content = page.getContent().stream()
-                .map(l -> LogementResponse.from(l, List.of()))
+                .map(l -> LogementResponse.from(l, getCoverPhotoUrl(l.getId())))
                 .toList();
 
         return new PageResponse<>(content, pageNumber, 20, page.getTotalElements(), page.hasNext());

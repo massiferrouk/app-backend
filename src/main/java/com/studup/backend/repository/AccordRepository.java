@@ -26,6 +26,10 @@ public interface AccordRepository extends JpaRepository<Accord, UUID> {
             """)
     Page<Accord> findByUserId(@Param("userId") UUID userId, Pageable pageable);
 
+    // Existe-t-il un accord lié à ce logement (comme logement A ou B) ?
+    // Sert à empêcher la suppression d'un logement engagé dans un accord.
+    boolean existsByLogementAIdOrLogementBId(UUID logementAId, UUID logementBId);
+
     /**
      * Expire tous les accords EN_ATTENTE créés avant la limite de temps donnée.
      * Retourne le nombre d'accords modifiés.

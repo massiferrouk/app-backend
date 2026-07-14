@@ -24,9 +24,22 @@ public record MatchingSuggestionResponse(
         int nbSemainesColocation,
         int nbSemainesChevauchement,
         String messageResume,
-        List<SemaineCompatibilite> semaines
+        List<SemaineCompatibilite> semaines,
+        // Logements publiés et associés qui rendent l'échange signable.
+        // null si l'alternant concerné n'a pas encore publié son logement (match potentiel).
+        UUID logementAId,   // logement de l'utilisateur connecté (initiateur)
+        UUID logementBId    // logement du candidat (destinataire)
 ) {
-    public static MatchingSuggestionResponse from(AlternantProfile profile, MatchingResult result) {
+    /**
+     * isMatchActif et les IDs de logements sont calculés dans le MatchingService
+     * (le CompatibilityCalculator ne connaît pas les logements), on les passe donc
+     * explicitement ici plutôt que via result.isMatchActif() (toujours false).
+     */
+    public static MatchingSuggestionResponse from(AlternantProfile profile,
+                                                  MatchingResult result,
+                                                  boolean isMatchActif,
+                                                  UUID logementAId,
+                                                  UUID logementBId) {
         return new MatchingSuggestionResponse(
                 profile.getId(),
                 profile.getUser().getId(),
@@ -37,13 +50,15 @@ public record MatchingSuggestionResponse(
                 result.score(),
                 (int) Math.round(result.score() * 100),
                 result.typePropose(),
-                result.isMatchActif(),
+                isMatchActif,
                 result.messageMatchPotentiel(),
                 result.nbSemainesEchange(),
                 result.nbSemainesColocation(),
                 result.nbSemainesChevauchement(),
                 result.messageResume(),
-                result.semaines()
+                result.semaines(),
+                logementAId,
+                logementBId
         );
     }
 }

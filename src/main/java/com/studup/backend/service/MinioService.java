@@ -2,6 +2,9 @@ package com.studup.backend.service;
 
 import io.minio.*;
 import io.minio.http.Method;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class MinioService {
 
+    private static final Logger log = LoggerFactory.getLogger(MinioService.class);
+
     private final MinioClient minioClient;
 
     @Value("${minio.bucket.logements}")
@@ -18,6 +23,28 @@ public class MinioService {
 
     public MinioService(MinioClient minioClient) {
         this.minioClient = minioClient;
+    }
+
+    /**
+     * Crée le bucket au démarrage s'il n'existe pas encore. Sans ça, un
+     * MinIO fraîchement démarré (nouveau conteneur) n'a aucun bucket et le
+     * premier upload échoue en « bucket does not exist » (→ 500).
+     */
+    @PostConstruct
+    void ensureBucketExists() {
+        try {
+            boolean exists = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketLogements).build());
+            if (!exists) {
+                minioClient.makeBucket(
+                        MakeBucketArgs.builder().bucket(bucketLogements).build());
+                log.info("Bucket MinIO '{}' créé au démarrage", bucketLogements);
+            }
+        } catch (Exception e) {
+            // Non bloquant : on log, l'upload remontera une erreur claire si besoin
+            log.warn("Impossible de vérifier/créer le bucket MinIO '{}' : {}",
+                    bucketLogements, e.getMessage());
+        }
     }
 
     /**

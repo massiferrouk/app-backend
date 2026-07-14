@@ -84,7 +84,8 @@ class LogementControllerTest {
                 true,
                 null,
                 List.of(),
-                OffsetDateTime.now()
+                OffsetDateTime.now(),
+                "Pierre"
         );
     }
 
@@ -248,7 +249,7 @@ class LogementControllerTest {
                 id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
-                LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now()
+                LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now(), "Pierre"
         );
 
         // @PreAuthorize passe → securityService retourne true
@@ -283,7 +284,7 @@ class LogementControllerTest {
                 id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
-                LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now()
+                LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now(), "Pierre"
         );
 
         // @PreAuthorize passe → securityService retourne true

@@ -22,9 +22,18 @@ public record AccordResponse(
         BigDecimal montantLoyer,
         String messageInitial,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        // Prénoms des participants — permettent au frontend d'afficher le nom
+        // du partenaire (ex: bouton « Contacter ») sans appel supplémentaire.
+        // null quand la réponse est construite sans contexte utilisateur.
+        String initiatorPrenom,
+        String receiverPrenom
 ) {
     public static AccordResponse from(Accord accord) {
+        return from(accord, null, null);
+    }
+
+    public static AccordResponse from(Accord accord, String initiatorPrenom, String receiverPrenom) {
         return new AccordResponse(
                 accord.getId(),
                 accord.getInitiatorId(),
@@ -38,7 +47,9 @@ public record AccordResponse(
                 accord.getMontantLoyer(),
                 accord.getMessageInitial(),
                 accord.getCreatedAt(),
-                accord.getUpdatedAt()
+                accord.getUpdatedAt(),
+                initiatorPrenom,
+                receiverPrenom
         );
     }
 }

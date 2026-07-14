@@ -6,6 +6,7 @@ import com.studup.backend.security.JwtUtil;
 import com.studup.backend.service.AlternantProfileService;
 import com.studup.backend.service.AuthService;
 import com.studup.backend.service.DisponibiliteService;
+import com.studup.backend.service.GeocodingService;
 import com.studup.backend.service.LogementService;
 import com.studup.backend.service.AccordService;
 import com.studup.backend.service.MessageService;
@@ -67,6 +68,9 @@ class CorsConfigTest {
 
     @MockitoBean
     private LogementService logementService;
+
+    @MockitoBean
+    private GeocodingService geocodingService;
 
     @MockitoBean
     private DisponibiliteService disponibiliteService;

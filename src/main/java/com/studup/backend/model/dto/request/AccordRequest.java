@@ -1,7 +1,6 @@
 package com.studup.backend.model.dto.request;
 
 import com.studup.backend.model.enums.AccordType;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -16,11 +15,11 @@ public record AccordRequest(
         @NotNull(message = "Le type d'accord est obligatoire")
         AccordType type,
 
-        @NotNull(message = "La date de début est obligatoire")
-        @Future(message = "La date de début doit être dans le futur")
+        // Dates OPTIONNELLES : par défaut l'accord couvre toute la période
+        // commune des deux alternances, calculée par le backend. L'utilisateur
+        // ne saisit pas de dates — l'app se contente de mettre en relation,
+        // l'organisation reste à la main des deux utilisateurs.
         LocalDate dateDebut,
-
-        @NotNull(message = "La date de fin est obligatoire")
         LocalDate dateFin,
 
         UUID logementAId,

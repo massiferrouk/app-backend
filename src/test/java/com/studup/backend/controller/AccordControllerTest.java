@@ -57,7 +57,8 @@ class AccordControllerTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 null, null, AccordType.ECHANGE_TOTAL, statut,
                 LocalDate.now().plusDays(10), LocalDate.now().plusMonths(6),
-                null, "Bonjour", OffsetDateTime.now(), OffsetDateTime.now()
+                null, "Bonjour", OffsetDateTime.now(), OffsetDateTime.now(),
+                "Alice", "Bob"
         );
     }
 

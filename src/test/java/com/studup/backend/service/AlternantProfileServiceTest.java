@@ -47,6 +47,8 @@ class AlternantProfileServiceTest {
     // @Spy : on utilise la vraie implémentation de ScheduleGenerator (pas de dépendances externes)
     @Spy private ScheduleGenerator scheduleGenerator = new ScheduleGenerator();
 
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private AlternantProfileService service;
 

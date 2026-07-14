@@ -27,4 +27,18 @@
         </root>
     </springProfile>
 
+    <!-- DEBUG TEMP : profil test — sans ce bloc aucun appender/root n'est actif
+         pendant les tests d'intégration (ni "default" ni "prod" ne matchent "test"),
+         donc log.warn/log.error de l'appli sont silencieusement perdus. -->
+    <springProfile name="test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
 </configuration>

@@ -57,7 +57,7 @@ public class NotificationTemplateService {
             );
             case NOUVEAU_MATCH -> new NotificationTemplate(
                     "Nouveau match !",
-                    "Un alternant compatible avec votre profil vient d'être trouvé"
+                    prenom + " a un profil compatible avec le vôtre — découvrez votre échange possible"
             );
             case SYSTEME -> new NotificationTemplate(
                     data.getOrDefault("titre", "Information"),

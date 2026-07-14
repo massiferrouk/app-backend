@@ -1,6 +1,7 @@
 package com.studup.backend.service;
 
 import com.studup.backend.algorithm.ScheduleGenerator;
+import com.studup.backend.event.AlternantProfileSavedEvent;
 import com.studup.backend.exception.ProfileAlreadyExistsException;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.request.CreateAlternantProfileRequest;
@@ -13,6 +14,7 @@ import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.JourFerieRepository;
 import com.studup.backend.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,17 +29,20 @@ public class AlternantProfileService {
     private final UserRepository userRepository;
     private final JourFerieRepository jourFerieRepository;
     private final ScheduleGenerator scheduleGenerator;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AlternantProfileService(AlternantProfileRepository profileRepository,
                                    AlternanceScheduleRepository scheduleRepository,
                                    UserRepository userRepository,
                                    JourFerieRepository jourFerieRepository,
-                                   ScheduleGenerator scheduleGenerator) {
+                                   ScheduleGenerator scheduleGenerator,
+                                   ApplicationEventPublisher eventPublisher) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
         this.jourFerieRepository = jourFerieRepository;
         this.scheduleGenerator = scheduleGenerator;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -74,6 +79,9 @@ public class AlternantProfileService {
         profile = profileRepository.save(profile);
 
         List<AlternanceSchedule> schedule = buildAndSaveSchedule(profile);
+
+        // Notifie les alternants compatibles qu'un nouveau match existe (APP-98)
+        eventPublisher.publishEvent(new AlternantProfileSavedEvent(user.getId()));
 
         return AlternantProfileResponse.from(profile, schedule.size());
     }
@@ -120,6 +128,9 @@ public class AlternantProfileService {
         // Recalcul complet du calendrier après modification du profil
         scheduleRepository.deleteByProfileId(profile.getId());
         List<AlternanceSchedule> schedule = buildAndSaveSchedule(profile);
+
+        // Les villes/rythme ont pu changer → recalcule et notifie les matchs (APP-98)
+        eventPublisher.publishEvent(new AlternantProfileSavedEvent(user.getId()));
 
         return AlternantProfileResponse.from(profile, schedule.size());
     }

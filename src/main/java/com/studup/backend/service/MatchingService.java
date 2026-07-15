@@ -77,18 +77,24 @@ public class MatchingService {
 
         // Logement publié et associé de l'utilisateur connecté (initiateur).
         // Calculé une seule fois — il est le même pour tous les candidats.
-        UUID myLogementId = findLogementPublieAssocie(myProfile.getUser().getId());
+        // On garde l'entité complète : son loyer sert au calcul d'économie (APP-103).
+        Logement myLogement = findLogementPublieAssocie(myProfile.getUser().getId());
+        UUID myLogementId = myLogement == null ? null : myLogement.getId();
 
         return candidates.stream()
                 .map(candidate -> {
                     List<AlternanceSchedule> candidateSchedules = scheduleRepository
                             .findByProfileIdOrderBySemaineAsc(candidate.getId());
 
-                    MatchingResult result = calculator.calculate(
-                            myProfile, candidate, mySchedules, candidateSchedules);
-
-                    UUID candidateLogementId =
+                    Logement candidateLogement =
                             findLogementPublieAssocie(candidate.getUser().getId());
+                    UUID candidateLogementId =
+                            candidateLogement == null ? null : candidateLogement.getId();
+
+                    // Les logements alimentent le calcul d'économie estimée
+                    MatchingResult result = calculator.calculate(
+                            myProfile, candidate, mySchedules, candidateSchedules,
+                            myLogement, candidateLogement);
 
                     // Match ACTIF = un accord est signable immédiatement.
                     // Pour un échange, il faut que les DEUX aient publié leur logement.
@@ -151,19 +157,19 @@ public class MatchingService {
     // ─── Méthodes privées ─────────────────────────────────────────────────────
 
     /**
-     * Retourne l'ID du premier logement PUBLIÉ (statut ACTIF) et associé à une
+     * Retourne le premier logement PUBLIÉ (statut ACTIF) et associé à une
      * ville de l'alternant, ou null s'il n'en a pas encore publié.
+     * L'entité complète est retournée : le loyer sert au calcul d'économie.
      *
      * On charge tous les logements du propriétaire puis on filtre en mémoire :
      * les colonnes statut et ville_associee sont des ENUM PostgreSQL natifs avec
      * @ColumnTransformer en écriture seule — une requête dérivée
      * (WHERE statut = ?) provoquerait l'erreur SQL 42883 (cf. APP-91).
      */
-    private UUID findLogementPublieAssocie(UUID ownerId) {
+    private Logement findLogementPublieAssocie(UUID ownerId) {
         return logementRepository.findByOwnerId(ownerId).stream()
                 .filter(l -> l.getStatut() == LogementStatut.ACTIF)
                 .filter(l -> l.getVilleAssociee() != null)
-                .map(Logement::getId)
                 .findFirst()
                 .orElse(null);
     }

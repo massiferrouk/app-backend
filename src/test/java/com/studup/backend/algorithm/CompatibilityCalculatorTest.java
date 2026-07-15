@@ -295,7 +295,102 @@ class CompatibilityCalculatorTest {
         assertThat(result.messageMatchPotentiel()).contains("logements");
     }
 
+    // ─── Économies estimées (APP-103) ─────────────────────────────────────────
+
+    @Test
+    void shouldCalculateEconomieForEchangeWithBothLogements() {
+        // A : Lyon 3 semaines puis Paris 1 semaine ; B : rythme miroir.
+        // Le logement de B est à Lyon (900 €) : A l'occupe les 3 semaines où
+        // il est à Lyon → économie = 900 × 3/4 = 675 €/mois.
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "B"),
+                schedule(profileA, SEMAINE_2, "B"),
+                schedule(profileA, SEMAINE_3, "B"),
+                schedule(profileA, SEMAINE_4, "A"));
+        List<AlternanceSchedule> schedulesB = List.of(
+                schedule(profileB, SEMAINE_1, "B"),
+                schedule(profileB, SEMAINE_2, "B"),
+                schedule(profileB, SEMAINE_3, "B"),
+                schedule(profileB, SEMAINE_4, "A"));
+
+        MatchingResult result = calculator.calculate(
+                profileA, profileB, schedulesA, schedulesB,
+                logement("Paris", "650"), logement("Lyon", "900"));
+
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
+        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("675");
+        assertThat(result.economieEstimeeMin()).isEqualByComparingTo("675");
+    }
+
+    @Test
+    void shouldCalculateEconomieForColocationWithBothLoyers() {
+        // A et C : même rythme, mêmes villes → coloc tournante.
+        // Loyers 650 + 900 → chacun économise (650+900)/2 = 775 €/mois.
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "A"),
+                schedule(profileA, SEMAINE_2, "B"));
+        List<AlternanceSchedule> schedulesC = List.of(
+                schedule(profileC, SEMAINE_1, "A"),
+                schedule(profileC, SEMAINE_2, "B"));
+
+        MatchingResult result = calculator.calculate(
+                profileA, profileC, schedulesA, schedulesC,
+                logement("Paris", "650"), logement("Lyon", "900"));
+
+        assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
+        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("775");
+    }
+
+    @Test
+    void shouldCalculatePartialEconomieForColocationWithOneLoyer() {
+        // Un seul loyer connu (650) → estimation partielle : 650/2 = 325 €/mois
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "A"));
+        List<AlternanceSchedule> schedulesC = List.of(
+                schedule(profileC, SEMAINE_1, "A"));
+
+        MatchingResult result = calculator.calculate(
+                profileA, profileC, schedulesA, schedulesC,
+                logement("Paris", "650"), null);
+
+        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("325");
+    }
+
+    @Test
+    void shouldReturnZeroEconomieWhenNoLogements() {
+        List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
+        List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
+
+        // Variante 4 arguments : aucun loyer connu → zéro, jamais de chiffre inventé
+        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+
+        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
+        assertThat(result.economieEstimeeMin()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void shouldIgnoreLoyerOfLogementOutsideExchangeCities() {
+        // Le logement de B est dans une ville où A ne va jamais → économie nulle
+        // pour A (il n'occupera jamais ce logement pendant les échanges).
+        List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
+        List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
+
+        MatchingResult result = calculator.calculate(
+                profileA, profileB, schedulesA, schedulesB,
+                null, logement("Bordeaux", "900"));
+
+        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private com.studup.backend.model.entity.Logement logement(String ville, String loyer) {
+        return com.studup.backend.model.entity.Logement.builder()
+                .id(UUID.randomUUID())
+                .ville(ville)
+                .loyer(new java.math.BigDecimal(loyer))
+                .build();
+    }
 
     private AlternanceSchedule schedule(AlternantProfile profile, LocalDate semaine, String label) {
         return AlternanceSchedule.builder()

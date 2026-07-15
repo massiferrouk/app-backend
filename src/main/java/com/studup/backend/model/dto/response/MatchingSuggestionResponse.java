@@ -5,6 +5,7 @@ import com.studup.backend.algorithm.SemaineCompatibilite;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.enums.AccordType;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,7 +29,10 @@ public record MatchingSuggestionResponse(
         // Logements publiés et associés qui rendent l'échange signable.
         // null si l'alternant concerné n'a pas encore publié son logement (match potentiel).
         UUID logementAId,   // logement de l'utilisateur connecté (initiateur)
-        UUID logementBId    // logement du candidat (destinataire)
+        UUID logementBId,   // logement du candidat (destinataire)
+        // Économie mensuelle estimée pour l'utilisateur connecté, en euros
+        // entiers. ZERO = pas calculable (loyers inconnus) → rien à afficher.
+        BigDecimal economieMensuelle
 ) {
     /**
      * isMatchActif et les IDs de logements sont calculés dans le MatchingService
@@ -58,7 +62,8 @@ public record MatchingSuggestionResponse(
                 result.messageResume(),
                 result.semaines(),
                 logementAId,
-                logementBId
+                logementBId,
+                result.economieEstimeeMax()
         );
     }
 }

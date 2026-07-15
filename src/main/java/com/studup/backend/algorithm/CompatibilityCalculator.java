@@ -2,6 +2,7 @@ package com.studup.backend.algorithm;
 
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.AccordType;
 import com.studup.backend.model.enums.CompatibiliteType;
 import org.springframework.stereotype.Component;
@@ -15,13 +16,31 @@ import java.util.*;
 public class CompatibilityCalculator {
 
     /**
-     * Calcule la compatibilité entre deux alternants.
-     * Prérequis : les deux profils doivent avoir au moins une ville en commun (vérifié avant l'appel).
+     * Variante sans logements : l'économie estimée reste à zéro.
+     * Utilisée quand les loyers ne sont pas nécessaires (notifications de
+     * match, calendrier) ou pas encore connus.
      */
     public MatchingResult calculate(AlternantProfile profileA,
                                     AlternantProfile profileB,
                                     List<AlternanceSchedule> schedulesA,
                                     List<AlternanceSchedule> schedulesB) {
+        return calculate(profileA, profileB, schedulesA, schedulesB, null, null);
+    }
+
+    /**
+     * Calcule la compatibilité entre deux alternants.
+     * Prérequis : les deux profils doivent avoir au moins une ville en commun (vérifié avant l'appel).
+     *
+     * [logementA] / [logementB] : logements PUBLIÉS de chaque alternant
+     * (null si pas encore publié) — servent au calcul de l'économie estimée
+     * du point de vue de l'alternant A (APP-103).
+     */
+    public MatchingResult calculate(AlternantProfile profileA,
+                                    AlternantProfile profileB,
+                                    List<AlternanceSchedule> schedulesA,
+                                    List<AlternanceSchedule> schedulesB,
+                                    Logement logementA,
+                                    Logement logementB) {
 
         if (schedulesA.isEmpty() || schedulesB.isEmpty()) {
             return emptyResult();
@@ -81,8 +100,13 @@ public class CompatibilityCalculator {
         boolean isMatchActif = false;
         String messageMatchPotentiel = buildMessageMatchPotentiel(profileA, profileB, typePropose);
 
-        BigDecimal economieMin = calculerEconomieMin(profileA, profileB, nbEchange, nbColocation, typePropose);
-        BigDecimal economieMax = calculerEconomieMax(profileA, profileB, nbEchange, nbColocation, typePropose);
+        // Économie mensuelle estimée du point de vue de A (APP-103).
+        // min = ce qui est certain avec les loyers connus, max = identique
+        // pour l'instant (fourchette réservée aux évolutions futures).
+        BigDecimal economie = calculerEconomieMensuelle(
+                typePropose, semaines, logementA, logementB);
+        BigDecimal economieMin = economie;
+        BigDecimal economieMax = economie;
 
         String messageResume = buildMessageResume(nbEchange, nbColocation, nbChevauchement, score, typePropose);
 
@@ -160,17 +184,48 @@ public class CompatibilityCalculator {
         return null;
     }
 
-    // Économie minimale : loyer le plus bas des deux × (nbEchange / 4.33)
-    private BigDecimal calculerEconomieMin(AlternantProfile a, AlternantProfile b,
-                                            int nbEchange, int nbColoc, AccordType type) {
-        if (type == null) return BigDecimal.ZERO;
-        // Sans données de loyer sur le profil, on retourne 0 — sera enrichi par les logements
-        return BigDecimal.ZERO;
-    }
+    /**
+     * Économie mensuelle moyenne pour l'alternant A, en euros entiers (APP-103).
+     *
+     * ÉCHANGE : les semaines où A occupe le logement de B (A est dans la ville
+     * du logement de B pendant une semaine d'échange), il ne paie pas ce loyer.
+     * Moyenne mensuelle = loyerB × (semaines bénéficiaires / semaines totales).
+     *
+     * COLOCATION TOURNANTE : les deux partagent les logements, chacun paie la
+     * moitié de chaque loyer → économie = (loyerA + loyerB) / 2.
+     * Un seul loyer connu = estimation partielle (moitié du loyer connu).
+     *
+     * Aucun loyer exploitable → ZERO (le frontend n'affiche rien).
+     */
+    private BigDecimal calculerEconomieMensuelle(AccordType type,
+                                                 List<SemaineCompatibilite> semaines,
+                                                 Logement logementA,
+                                                 Logement logementB) {
+        if (type == null || semaines.isEmpty()) return BigDecimal.ZERO;
 
-    private BigDecimal calculerEconomieMax(AlternantProfile a, AlternantProfile b,
-                                            int nbEchange, int nbColoc, AccordType type) {
-        if (type == null) return BigDecimal.ZERO;
+        if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
+            if (logementB == null || logementB.getLoyer() == null) {
+                return BigDecimal.ZERO;
+            }
+            long semainesChezB = semaines.stream()
+                    .filter(s -> s.type() == CompatibiliteType.ECHANGE)
+                    .filter(s -> s.villeAlternantA()
+                            .equalsIgnoreCase(logementB.getVille()))
+                    .count();
+            return logementB.getLoyer()
+                    .multiply(BigDecimal.valueOf(semainesChezB))
+                    .divide(BigDecimal.valueOf(semaines.size()), 0, RoundingMode.HALF_UP);
+        }
+
+        if (type == AccordType.COLOCATION_TOURNANTE) {
+            BigDecimal loyerA = logementA == null ? null : logementA.getLoyer();
+            BigDecimal loyerB = logementB == null ? null : logementB.getLoyer();
+            if (loyerA == null && loyerB == null) return BigDecimal.ZERO;
+            BigDecimal somme = (loyerA == null ? BigDecimal.ZERO : loyerA)
+                    .add(loyerB == null ? BigDecimal.ZERO : loyerB);
+            return somme.divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+        }
+
         return BigDecimal.ZERO;
     }
 

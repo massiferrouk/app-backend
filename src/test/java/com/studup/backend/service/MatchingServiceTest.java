@@ -128,9 +128,9 @@ class MatchingServiceTest {
                 false, "message", List.of(), 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
-        when(calculator.calculate(eq(myProfile), eq(candidatProfile), any(), any()))
+        when(calculator.calculate(eq(myProfile), eq(candidatProfile), any(), any(), any(), any()))
                 .thenReturn(resultHaut);
-        when(calculator.calculate(eq(myProfile), eq(candidat2), any(), any()))
+        when(calculator.calculate(eq(myProfile), eq(candidat2), any(), any(), any(), any()))
                 .thenReturn(resultBas);
 
         List<MatchingSuggestionResponse> suggestions = matchingService.getSuggestions("alice@studup.fr");
@@ -157,7 +157,7 @@ class MatchingServiceTest {
                 List.of(), 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(matchPotentiel);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(matchPotentiel);
 
         List<MatchingSuggestionResponse> suggestions = matchingService.getSuggestions("alice@studup.fr");
 
@@ -181,7 +181,7 @@ class MatchingServiceTest {
                 false, null, List.of(), 0, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine commune");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(sansCompatibilite);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(sansCompatibilite);
 
         List<MatchingSuggestionResponse> suggestions = matchingService.getSuggestions("alice@studup.fr");
 
@@ -214,7 +214,7 @@ class MatchingServiceTest {
                 false, "message", List.of(), 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(result);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
         List<MatchingSuggestionResponse> suggestions = matchingService.getSuggestions("alice@studup.fr");
 

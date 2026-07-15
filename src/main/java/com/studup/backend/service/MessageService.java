@@ -77,6 +77,12 @@ public class MessageService {
         messagingTemplate.convertAndSend(
                 "/topic/conversation/" + conversation.getId(), response);
 
+        // Topic PERSONNEL du destinataire (APP-102) : permet au badge Messages
+        // de se mettre à jour en temps réel même si son écran de chat est fermé
+        // (il n'est abonné au topic de la conversation que dans le chat).
+        messagingTemplate.convertAndSend(
+                "/topic/user/" + receiverId + "/messages", response);
+
         return response;
     }
 

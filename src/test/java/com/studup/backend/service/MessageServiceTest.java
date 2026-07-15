@@ -108,6 +108,9 @@ class MessageServiceTest {
         // Vérifie que le broadcast WebSocket a bien eu lieu sur le bon topic
         verify(messagingTemplate).convertAndSend(
                 eq("/topic/conversation/" + conversation.getId()), any(MessageResponse.class));
+        // Et sur le topic personnel du destinataire (badge temps réel, APP-102)
+        verify(messagingTemplate).convertAndSend(
+                eq("/topic/user/" + receiver.getId() + "/messages"), any(MessageResponse.class));
     }
 
     // ─── shouldCreateNewConversationWhenNoneExists ────────────────────────────

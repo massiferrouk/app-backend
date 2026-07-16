@@ -90,10 +90,14 @@ public class CompatibilityCalculator {
         }
 
         int total = semaines.size();
-        double score = total > 0 ? (double) nbEchange / total : 0.0;
+        // Score = semaines où StudUp fait économiser (échange OU coloc) sur le
+        // total. Avant APP-108, seul l'échange comptait : les cas mixtes
+        // (rythmes différents, villes communes) tombaient sous le seuil et
+        // devenaient invisibles alors qu'ils sont les plus fréquents.
+        double score = total > 0 ? (double) (nbEchange + nbColocation) / total : 0.0;
         score = Math.min(1.0, Math.round(score * 10000.0) / 10000.0);
 
-        AccordType typePropose = determineAccordType(score, nbColocation);
+        AccordType typePropose = determineAccordType(nbEchange, nbColocation, total);
 
         // Match actif = les deux alternants ont les logements nécessaires publiés
         // Pour l'instant on retourne false — sera enrichi dans MatchingService
@@ -108,7 +112,9 @@ public class CompatibilityCalculator {
         BigDecimal economieMin = economie;
         BigDecimal economieMax = economie;
 
-        String messageResume = buildMessageResume(nbEchange, nbColocation, nbChevauchement, score, typePropose);
+        int nbChacunChezSoi = total - nbEchange - nbColocation;
+        String messageResume = buildMessageResume(
+                nbEchange, nbColocation, nbChacunChezSoi, score, typePropose);
 
         return new MatchingResult(
                 score,
@@ -147,29 +153,41 @@ public class CompatibilityCalculator {
         return CompatibiliteType.INCOMPATIBLE;
     }
 
-    // Mapping score → AccordType selon les seuils documentés
-    private AccordType determineAccordType(double score, int nbColocation) {
-        if (score >= 0.90) return AccordType.ECHANGE_TOTAL;
-        if (score >= 0.60) return AccordType.ECHANGE_PARTIEL;
-        if (score == 0.0 && nbColocation > 0) return AccordType.COLOCATION_TOURNANTE;
+    /**
+     * Mapping vers AccordType (APP-108). On raisonne sur les nombres de
+     * semaines, pas sur un seuil de score :
+     * - 100 % d'échange → ECHANGE_TOTAL
+     * - au moins une semaine d'échange (mais pas 100 %) → ECHANGE_PARTIEL,
+     *   les semaines de coloc sont incluses dans le message
+     * - aucune semaine d'échange mais de la coloc → COLOCATION_TOURNANTE
+     * - ni échange ni coloc → pas de match
+     */
+    private AccordType determineAccordType(int nbEchange, int nbColocation, int total) {
+        if (total == 0) return null;
+        if (nbEchange == total) return AccordType.ECHANGE_TOTAL;
+        if (nbEchange > 0) return AccordType.ECHANGE_PARTIEL;
+        if (nbColocation > 0) return AccordType.COLOCATION_TOURNANTE;
         return null;
     }
 
-    private String buildMessageResume(int nbEchange, int nbColoc, int nbChevauchement,
+    private String buildMessageResume(int nbEchange, int nbColoc, int nbChacunChezSoi,
                                        double score, AccordType type) {
         String base = nbEchange + " sem d'échange - " + nbColoc + " sem coloc - "
-                + nbChevauchement + " sem chevauchement";
+                + nbChacunChezSoi + " sem chacun chez soi";
 
         if (type == AccordType.ECHANGE_TOTAL) {
             return base + "\nVos rythmes sont parfaitement complémentaires. Vous pouvez échanger vos logements sur toutes les semaines.";
         }
         if (type == AccordType.ECHANGE_PARTIEL) {
             int pct = (int) Math.round(score * 100);
-            return base + "\nVos rythmes sont compatibles à " + pct + "%. " + nbEchange
-                    + " semaines d'échange possibles. " + nbChevauchement + " semaine(s) à gérer entre vous.";
+            String coloc = nbColoc > 0
+                    ? " et faire coloc " + nbColoc + " semaine(s)"
+                    : "";
+            return base + "\nVous pouvez économiser sur " + pct + "% des semaines : "
+                    + nbEchange + " semaine(s) d'échange" + coloc + ".";
         }
         if (type == AccordType.COLOCATION_TOURNANTE) {
-            return base + "\nVous avez exactement le même rythme. Vous pouvez partager un logement dans chaque ville.";
+            return base + "\nVous avez le même rythme. Vous pouvez partager un logement et diviser les loyers.";
         }
         return base;
     }
@@ -207,8 +225,13 @@ public class CompatibilityCalculator {
             if (logementB == null || logementB.getLoyer() == null) {
                 return BigDecimal.ZERO;
             }
+            // Semaines où A loge dans le logement de B, sans payer de loyer :
+            // - échange : B est ailleurs, son logement est libre
+            // - coloc : ils y sont ensemble, A ne prend pas un 2e logement
+            // Dans les deux cas A évite un loyer dans la ville du logement de B (APP-108).
             long semainesChezB = semaines.stream()
-                    .filter(s -> s.type() == CompatibiliteType.ECHANGE)
+                    .filter(s -> s.type() == CompatibiliteType.ECHANGE
+                            || s.type() == CompatibiliteType.COLOCATION)
                     .filter(s -> s.villeAlternantA()
                             .equalsIgnoreCase(logementB.getVille()))
                     .count();

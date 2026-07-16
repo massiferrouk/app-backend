@@ -110,7 +110,9 @@ class CompatibilityCalculatorTest {
 
         MatchingResult result = calculator.calculate(profileA, profileC, schedulesA, schedulesC);
 
-        assertThat(result.score()).isEqualTo(0.0);
+        // APP-108 : la coloc compte maintenant dans le score (semaines où
+        // StudUp fait économiser). 4 semaines coloc sur 4 → score 1.0.
+        assertThat(result.score()).isEqualTo(1.0);
         assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
         assertThat(result.nbSemainesColocation()).isEqualTo(4);
         assertThat(result.nbSemainesEchange()).isEqualTo(0);
@@ -126,7 +128,8 @@ class CompatibilityCalculatorTest {
         // Semaine 2 : A à Lyon, B à Lyon   → COLOCATION
         // Semaine 3 : A à Lyon, B à Paris  → ECHANGE ✓
         // Semaine 4 : A à Paris, B à Lyon  → ECHANGE ✓
-        // score = 3/4 = 0.75 → ECHANGE_PARTIEL
+        // APP-108 : score = (3 échange + 1 coloc)/4 = 1.0, mais 3 échange
+        // sur 4 → ECHANGE_PARTIEL (pas 100 % d'échange).
 
         AlternantProfile profBPartiel = AlternantProfile.builder()
                 .id(UUID.randomUUID())
@@ -150,10 +153,10 @@ class CompatibilityCalculatorTest {
 
         MatchingResult result = calculator.calculate(profileA, profBPartiel, schedulesA, schedulesB);
 
-        assertThat(result.score()).isGreaterThanOrEqualTo(0.60);
-        assertThat(result.score()).isLessThan(0.90);
+        assertThat(result.score()).isEqualTo(1.0);
         assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
         assertThat(result.nbSemainesEchange()).isEqualTo(3);
+        assertThat(result.nbSemainesColocation()).isEqualTo(1);
     }
 
     // ─── CAS 4 : Score zéro sans colocation ───────────────────────────────────
@@ -293,6 +296,78 @@ class CompatibilityCalculatorTest {
         // Sans logements publiés → match potentiel par défaut
         assertThat(result.isMatchActif()).isFalse();
         assertThat(result.messageMatchPotentiel()).contains("logements");
+    }
+
+    // ─── Cas mixte échange + coloc (APP-108) ──────────────────────────────────
+
+    @Test
+    void shouldMakeMixedCaseVisible() {
+        // A Paris/Lyon, B Lyon/Paris (villes inversées), rythmes décalés :
+        // W1 : A=Paris, B=Lyon  → ÉCHANGE
+        // W2 : A=Paris, B=Paris → COLOC
+        // W3 : A=Lyon,  B=Lyon  → COLOC
+        // W4 : A=Lyon,  B=Paris → ÉCHANGE
+        // Avant APP-108 : score = 2/4 = 0.50 → sous le seuil, match INVISIBLE.
+        // Après : score = (2+2)/4 = 1.0 → ECHANGE_PARTIEL, match visible.
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "A"),  // Paris
+                schedule(profileA, SEMAINE_2, "A"),  // Paris
+                schedule(profileA, SEMAINE_3, "B"),  // Lyon
+                schedule(profileA, SEMAINE_4, "B")); // Lyon
+        List<AlternanceSchedule> schedulesB = List.of(
+                schedule(profileB, SEMAINE_1, "A"),  // Lyon
+                schedule(profileB, SEMAINE_2, "B"),  // Paris
+                schedule(profileB, SEMAINE_3, "A"),  // Lyon
+                schedule(profileB, SEMAINE_4, "B")); // Paris
+
+        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
+        assertThat(result.score()).isEqualTo(1.0);
+        assertThat(result.nbSemainesEchange()).isEqualTo(2);
+        assertThat(result.nbSemainesColocation()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldLabelNeutralWeekAsChacunChezSoi() {
+        // A Paris/Lyon, B Lyon/Marseille : une seule ville commune (Lyon).
+        // Quand A est à Paris et B à Marseille → rien de possible :
+        // semaine neutre, libellée « Chacun chez soi » (pas un échec).
+        AlternantProfile profB = AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .villeA("Lyon").villeB("Marseille")
+                .rythme(RythmeAlternance.SEMAINE_3_1)
+                .build();
+
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "A")); // Paris
+        List<AlternanceSchedule> schedulesB = List.of(
+                schedule(profB, SEMAINE_1, "B"));    // Marseille
+
+        MatchingResult result = calculator.calculate(profileA, profB, schedulesA, schedulesB);
+
+        assertThat(result.semaines().get(0).type())
+                .isEqualTo(CompatibiliteType.INCOMPATIBLE);
+        assertThat(result.semaines().get(0).label()).isEqualTo("Chacun chez soi");
+    }
+
+    @Test
+    void shouldReturnNullWhenNoEchangeNoColoc() {
+        // Aucune ville commune sur cette semaine → ni échange ni coloc → pas de match
+        AlternantProfile profB = AlternantProfile.builder()
+                .id(UUID.randomUUID())
+                .villeA("Lyon").villeB("Marseille")
+                .rythme(RythmeAlternance.SEMAINE_3_1)
+                .build();
+
+        List<AlternanceSchedule> schedulesA = List.of(
+                schedule(profileA, SEMAINE_1, "A")); // Paris
+        List<AlternanceSchedule> schedulesB = List.of(
+                schedule(profB, SEMAINE_1, "B"));    // Marseille
+
+        MatchingResult result = calculator.calculate(profileA, profB, schedulesA, schedulesB);
+
+        assertThat(result.typePropose()).isNull();
     }
 
     // ─── Économies estimées (APP-103) ─────────────────────────────────────────

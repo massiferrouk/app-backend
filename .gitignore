@@ -36,3 +36,4 @@ build/
 CLAUDE.md
 # Dossier de travail Claude Code
 .claude/
+mvn_*.log

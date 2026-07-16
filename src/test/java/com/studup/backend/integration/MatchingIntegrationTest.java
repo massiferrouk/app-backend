@@ -81,8 +81,9 @@ class MatchingIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
         assertThat(result.nbSemainesColocation()).isGreaterThan(0);
-        // score = 0 pour une colocation (pas de semaines d'échange)
-        assertThat(result.score()).isEqualTo(0.0);
+        // APP-108 : la coloc compte dans le score (semaines où StudUp fait
+        // économiser). Mêmes rythme et villes → 100 % coloc → score 1.0.
+        assertThat(result.score()).isEqualTo(1.0);
     }
 
     // ─── schedules vides → résultat vide, pas d'exception ────────────────────

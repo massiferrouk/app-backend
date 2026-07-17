@@ -11,6 +11,7 @@ import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.JourFerie;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.PremiereSemaine;
+import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.JourFerieRepository;
@@ -66,6 +67,8 @@ public class AlternantProfileService {
             throw new IllegalArgumentException("La ville A et la ville B doivent être différentes");
         }
 
+        rejeterRythmeAutre(request);
+
         AlternantProfile profile = AlternantProfile.builder()
                 .user(user)
                 .villeA(request.villeA())
@@ -117,6 +120,8 @@ public class AlternantProfileService {
             throw new IllegalArgumentException("La ville A et la ville B doivent être différentes");
         }
 
+        rejeterRythmeAutre(request);
+
         profile.setVilleA(request.villeA());
         profile.setVilleB(request.villeB());
         profile.setEcole(request.ecole());
@@ -136,6 +141,16 @@ public class AlternantProfileService {
         eventPublisher.publishEvent(new AlternantProfileSavedEvent(user.getId()));
 
         return AlternantProfileResponse.from(profile, schedule.size());
+    }
+
+    // Décision APP-110 : le rythme AUTRE n'est plus saisissable — il générait
+    // un calendrier 1/1 par défaut incohérent. La valeur reste dans l'enum
+    // uniquement pour lire les profils historiques déjà en base.
+    private void rejeterRythmeAutre(CreateAlternantProfileRequest request) {
+        if (request.rythme() == RythmeAlternance.AUTRE) {
+            throw new IllegalArgumentException(
+                    "Le rythme AUTRE n'est plus disponible : choisissez l'un des rythmes proposés");
+        }
     }
 
     // Champ optionnel pour les anciens clients : à défaut, on reproduit

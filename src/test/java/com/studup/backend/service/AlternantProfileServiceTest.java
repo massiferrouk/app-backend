@@ -281,6 +281,24 @@ class AlternantProfileServiceTest {
     }
 
     @Test
+    void shouldRejectRythmeAutre() {
+        // Décision APP-110 : AUTRE n'est plus saisissable (il générait un
+        // faux calendrier 1/1) — seuls les rythmes définis sont acceptés
+        CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
+                "Paris", "Lyon", "ESIEA", "Thales",
+                LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
+                RythmeAlternance.AUTRE, null
+        );
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
+        when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.createProfile("alice@studup.fr", request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("AUTRE");
+    }
+
+    @Test
     void shouldThrowWhenUserNotFound() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",

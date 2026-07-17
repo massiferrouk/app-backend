@@ -1,5 +1,6 @@
 package com.studup.backend.model.dto.request;
 
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,5 +33,9 @@ public record CreateAlternantProfileRequest(
         LocalDate dateFin,
 
         @NotNull(message = "Le rythme d'alternance est obligatoire")
-        RythmeAlternance rythme
+        RythmeAlternance rythme,
+
+        // Optionnel : les anciens clients ne l'envoient pas — le service
+        // applique alors PremiereSemaine.defaultFor(rythme) (APP-110)
+        PremiereSemaine premiereSemaine
 ) {}

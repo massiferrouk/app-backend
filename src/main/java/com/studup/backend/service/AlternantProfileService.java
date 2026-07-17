@@ -10,6 +10,7 @@ import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.JourFerie;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.JourFerieRepository;
@@ -74,6 +75,7 @@ public class AlternantProfileService {
                 .dateDebut(request.dateDebut())
                 .dateFin(request.dateFin())
                 .rythme(request.rythme())
+                .premiereSemaine(resolvePremiereSemaine(request))
                 .build();
 
         profile = profileRepository.save(profile);
@@ -122,6 +124,7 @@ public class AlternantProfileService {
         profile.setDateDebut(request.dateDebut());
         profile.setDateFin(request.dateFin());
         profile.setRythme(request.rythme());
+        profile.setPremiereSemaine(resolvePremiereSemaine(request));
 
         profile = profileRepository.save(profile);
 
@@ -133,6 +136,14 @@ public class AlternantProfileService {
         eventPublisher.publishEvent(new AlternantProfileSavedEvent(user.getId()));
 
         return AlternantProfileResponse.from(profile, schedule.size());
+    }
+
+    // Champ optionnel pour les anciens clients : à défaut, on reproduit
+    // l'ordre historique du générateur (SEMAINE_3_1 → entreprise, sinon école).
+    private PremiereSemaine resolvePremiereSemaine(CreateAlternantProfileRequest request) {
+        return request.premiereSemaine() != null
+                ? request.premiereSemaine()
+                : PremiereSemaine.defaultFor(request.rythme());
     }
 
     // Charge les jours fériés FR sur la période du profil, délègue la génération

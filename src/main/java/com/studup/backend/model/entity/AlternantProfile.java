@@ -1,5 +1,6 @@
 package com.studup.backend.model.entity;
 
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -52,6 +53,12 @@ public class AlternantProfile {
     @Column(nullable = false, columnDefinition = "rythme_alternance")
     @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS rythme_alternance)")
     private RythmeAlternance rythme;
+
+    // Ordre de départ du cycle : première semaine école ou entreprise (APP-110)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "premiere_semaine", nullable = false, columnDefinition = "premiere_semaine")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS premiere_semaine)")
+    private PremiereSemaine premiereSemaine;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

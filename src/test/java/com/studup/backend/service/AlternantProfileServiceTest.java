@@ -8,6 +8,7 @@ import com.studup.backend.model.dto.response.AlternantProfileResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
@@ -77,7 +78,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -106,11 +107,67 @@ class AlternantProfileServiceTest {
     }
 
     @Test
+    void shouldApplyLegacyDefaultPremiereSemaineWhenAbsent() {
+        // Ancien client : pas de premiereSemaine envoyée avec un rythme 3-1
+        // → le service applique le défaut historique ENTREPRISE (APP-110)
+        CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
+                "Paris", "Lyon", "ESIEA", "Thales",
+                LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_3_1, null
+        );
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
+        when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+        when(jourFerieRepository.findByPaysAndDateJourBetween(anyString(), any(), any()))
+                .thenReturn(Set.of());
+        when(profileRepository.save(any(AlternantProfile.class))).thenAnswer(invocation -> {
+            AlternantProfile p = invocation.getArgument(0);
+            p.setId(UUID.randomUUID());
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setUpdatedAt(OffsetDateTime.now());
+            return p;
+        });
+        when(scheduleRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
+
+        AlternantProfileResponse response = service.createProfile("alice@studup.fr", request);
+
+        assertThat(response.premiereSemaine()).isEqualTo(PremiereSemaine.ENTREPRISE);
+    }
+
+    @Test
+    void shouldKeepExplicitPremiereSemaine() {
+        // Nouveau client : premiereSemaine ECOLE explicite avec un rythme 3-1
+        // (l'inverse du défaut) → le choix de l'utilisateur est conservé
+        CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
+                "Paris", "Lyon", "ESIEA", "Thales",
+                LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_3_1, PremiereSemaine.ECOLE
+        );
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
+        when(profileRepository.existsByUserId(fakeUser.getId())).thenReturn(false);
+        when(jourFerieRepository.findByPaysAndDateJourBetween(anyString(), any(), any()))
+                .thenReturn(Set.of());
+        when(profileRepository.save(any(AlternantProfile.class))).thenAnswer(invocation -> {
+            AlternantProfile p = invocation.getArgument(0);
+            p.setId(UUID.randomUUID());
+            p.setCreatedAt(OffsetDateTime.now());
+            p.setUpdatedAt(OffsetDateTime.now());
+            return p;
+        });
+        when(scheduleRepository.saveAll(any())).thenAnswer(i -> i.getArgument(0));
+
+        AlternantProfileResponse response = service.createProfile("alice@studup.fr", request);
+
+        assertThat(response.premiereSemaine()).isEqualTo(PremiereSemaine.ECOLE);
+    }
+
+    @Test
     void shouldGenerateCorrectLabelsForSemaine11() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -151,7 +208,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2025, 9, 26),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -180,7 +237,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -196,7 +253,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2026, 8, 31), LocalDate.of(2025, 9, 1), // dates inversées
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -212,7 +269,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "paris", "ESIEA", "Thales", // même ville, casse différente
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(fakeUser));
@@ -228,7 +285,7 @@ class AlternantProfileServiceTest {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
                 "Paris", "Lyon", "ESIEA", "Thales",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
-                RythmeAlternance.SEMAINE_1_1
+                RythmeAlternance.SEMAINE_1_1, null
         );
 
         when(userRepository.findByEmail("inconnu@studup.fr")).thenReturn(Optional.empty());

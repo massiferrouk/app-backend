@@ -9,8 +9,11 @@ import com.studup.backend.model.dto.response.AlternanceScheduleResponse;
 import com.studup.backend.model.dto.response.MesSemainesResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.Logement;
+import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,17 +34,20 @@ public class CalendrierService {
     private final AlternantProfileRepository profileRepository;
     private final AlternanceScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
+    private final LogementRepository logementRepository;
     private final CompatibilityCalculator calculator;
     private final RedisTemplate<String, Object> redisTemplate;
 
     public CalendrierService(AlternantProfileRepository profileRepository,
                              AlternanceScheduleRepository scheduleRepository,
                              UserRepository userRepository,
+                             LogementRepository logementRepository,
                              CompatibilityCalculator calculator,
                              RedisTemplate<String, Object> redisTemplate) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
+        this.logementRepository = logementRepository;
         this.calculator = calculator;
         this.redisTemplate = redisTemplate;
     }
@@ -59,7 +65,22 @@ public class CalendrierService {
         var schedulesA = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileA.getId());
         var schedulesB = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileB.getId());
 
-        return calculator.calculate(profileA, profileB, schedulesA, schedulesB).semaines();
+        // Les logements publiés déterminent les semaines d'échange RÉELLES
+        // (APP-110) : sans eux, le calendrier n'affiche plus de faux vert
+        Logement logementA = findLogementPublieAssocie(userId1);
+        Logement logementB = findLogementPublieAssocie(userId2);
+
+        return calculator.calculate(profileA, profileB, schedulesA, schedulesB,
+                logementA, logementB).semaines();
+    }
+
+    // Même règle que MatchingService : le logement ACTIF associé à une ville du profil
+    private Logement findLogementPublieAssocie(UUID ownerId) {
+        return logementRepository.findByOwnerId(ownerId).stream()
+                .filter(l -> l.getStatut() == LogementStatut.ACTIF)
+                .filter(l -> l.getVilleAssociee() != null)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

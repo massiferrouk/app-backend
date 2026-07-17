@@ -125,12 +125,12 @@ class MatchingServiceTest {
 
         // candidatProfile : score 1.0 (échange total)
         MatchingResult resultHaut = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, "message", List.of(), 4, 0, 0,
+                false, "message", List.of(), 4, 4, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
         // candidat2 : score 0.75 (échange partiel)
         MatchingResult resultBas = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL,
-                false, "message", List.of(), 3, 0, 1,
+                false, "message", List.of(), 3, 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(eq(myProfile), eq(candidatProfile), any(), any(), any(), any()))
@@ -177,7 +177,7 @@ class MatchingServiceTest {
                 .thenReturn(List.of(sonLogement));
 
         MatchingResult echangeTotal = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, null, List.of(), 4, 0, 0,
+                false, null, List.of(), 4, 4, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
         when(calculator.calculate(any(), any(), any(), any(), any(), any()))
                 .thenReturn(echangeTotal);
@@ -207,7 +207,7 @@ class MatchingServiceTest {
         // Match potentiel : isMatchActif=false, messageMatchPotentiel non null
         MatchingResult matchPotentiel = new MatchingResult(0.8, AccordType.ECHANGE_PARTIEL,
                 false, "Publiez vos logements pour activer ce match",
-                List.of(), 3, 0, 1,
+                List.of(), 3, 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(matchPotentiel);
@@ -231,7 +231,7 @@ class MatchingServiceTest {
 
         // typePropose null = aucune compatibilité → doit être exclu
         MatchingResult sansCompatibilite = new MatchingResult(0.0, null,
-                false, null, List.of(), 0, 0, 0,
+                false, null, List.of(), 0, 0, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine commune");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(sansCompatibilite);
@@ -264,7 +264,7 @@ class MatchingServiceTest {
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
         MatchingResult result = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL,
-                false, "message", List.of(), 3, 0, 1,
+                false, "message", List.of(), 3, 3, 0, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);

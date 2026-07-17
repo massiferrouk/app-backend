@@ -60,6 +60,7 @@ public class CompatibilityCalculator {
 
         List<SemaineCompatibilite> semaines = new ArrayList<>();
         int nbEchange = 0;
+        int nbEchangePotentiel = 0;
         int nbColocation = 0;
         int nbChevauchement = 0;
 
@@ -74,7 +75,24 @@ public class CompatibilityCalculator {
             String villeA = "A".equals(labelA) ? profileA.getVilleA() : profileA.getVilleB();
             String villeB = "A".equals(labelB) ? profileB.getVilleA() : profileB.getVilleB();
 
-            CompatibiliteType type = classifierSemaine(villeA, villeB, profileA, profileB);
+            CompatibiliteType type;
+            if (villeA.equalsIgnoreCase(villeB)) {
+                // Même ville en même temps : fait de position, vrai quels que
+                // soient les logements
+                type = CompatibiliteType.COLOCATION;
+            } else if (positionsCroisees(villeA, villeB, profileA, profileB)) {
+                // Un échange SERAIT possible ici avec les bons logements
+                nbEchangePotentiel++;
+                // Échange RÉEL uniquement si chacun dort dans la ville du
+                // logement publié de l'autre (règle §3 grille APP-110) —
+                // sans logements publiés, on n'affirme rien : semaine neutre,
+                // les scénarios portent le conditionnel.
+                type = estEchangeReel(villeA, villeB, logementA, logementB)
+                        ? CompatibiliteType.ECHANGE
+                        : CompatibiliteType.INCOMPATIBLE;
+            } else {
+                type = CompatibiliteType.INCOMPATIBLE;
+            }
 
             semaines.add(SemaineCompatibilite.of(semaine, villeA, villeB, type));
 
@@ -94,15 +112,25 @@ public class CompatibilityCalculator {
         // total. Avant APP-108, seul l'échange comptait : les cas mixtes
         // (rythmes différents, villes communes) tombaient sous le seuil et
         // devenaient invisibles alors qu'ils sont les plus fréquents.
+        // Depuis APP-110, seul l'échange RÉEL compte : pas de logements
+        // publiés = score honnête, sans hypothèse silencieuse.
         double score = total > 0 ? (double) (nbEchange + nbColocation) / total : 0.0;
         score = Math.min(1.0, Math.round(score * 10000.0) / 10000.0);
 
-        AccordType typePropose = determineAccordType(nbEchange, nbColocation, total);
+        // Type proposé : basé sur le réel quand les deux logements sont
+        // publiés ; sinon sur les positions (potentiel), pour que les matchs
+        // potentiels restent visibles et notifiés — l'app informe, elle ne
+        // décide pas à la place de l'utilisateur (APP-110).
+        boolean logementsConnus = logementA != null && logementB != null;
+        AccordType typePropose = logementsConnus
+                ? determineAccordType(nbEchange, nbColocation, total)
+                : determineAccordType(nbEchangePotentiel, nbColocation, total);
 
         // Match actif = les deux alternants ont les logements nécessaires publiés
         // Pour l'instant on retourne false — sera enrichi dans MatchingService
         boolean isMatchActif = false;
-        String messageMatchPotentiel = buildMessageMatchPotentiel(profileA, profileB, typePropose);
+        String messageMatchPotentiel = buildMessageMatchPotentiel(
+                typePropose, logementA, logementB);
 
         // Économie mensuelle estimée du point de vue de A (APP-103).
         // min = ce qui est certain avec les loyers connus, max = identique
@@ -123,6 +151,7 @@ public class CompatibilityCalculator {
                 messageMatchPotentiel,
                 semaines,
                 nbEchange,
+                nbEchangePotentiel,
                 nbColocation,
                 nbChevauchement,
                 economieMin,
@@ -131,26 +160,34 @@ public class CompatibilityCalculator {
         );
     }
 
-    // Classifie une semaine selon la position des deux alternants
-    private CompatibiliteType classifierSemaine(String villeA, String villeB,
-                                                 AlternantProfile profileA,
-                                                 AlternantProfile profileB) {
-        if (villeA.equalsIgnoreCase(villeB)) {
-            // Même ville en même temps → colocation ou chevauchement (tranché au niveau du résultat global)
-            return CompatibiliteType.COLOCATION;
-        }
-
-        // Villes différentes : échange possible si chacun est dans la ville de l'autre
+    // Positions croisées : chacun est dans une des villes de l'autre cette semaine
+    private boolean positionsCroisees(String villeA, String villeB,
+                                      AlternantProfile profileA,
+                                      AlternantProfile profileB) {
         boolean aEstDansVilleDeB = villeA.equalsIgnoreCase(profileB.getVilleA())
                 || villeA.equalsIgnoreCase(profileB.getVilleB());
         boolean bEstDansVilleDeA = villeB.equalsIgnoreCase(profileA.getVilleA())
                 || villeB.equalsIgnoreCase(profileA.getVilleB());
+        return aEstDansVilleDeB && bEstDansVilleDeA;
+    }
 
-        if (aEstDansVilleDeB && bEstDansVilleDeA) {
-            return CompatibiliteType.ECHANGE;
-        }
-
-        return CompatibiliteType.INCOMPATIBLE;
+    /**
+     * Échange RÉEL (règle §3 de la grille, APP-110) : les deux logements sont
+     * publiés, dans deux villes différentes, et chacun passe cette semaine
+     * dans la ville du logement de l'autre. C'est la seule situation où
+     * quelqu'un dort effectivement chez l'autre — une semaine « chacun chez
+     * soi » (chacun dans la ville de son propre logement) n'est PAS un échange.
+     */
+    private boolean estEchangeReel(String villeA, String villeB,
+                                   Logement logementA, Logement logementB) {
+        if (logementA == null || logementB == null) return false;
+        String villeLogementA = logementA.getVille();
+        String villeLogementB = logementB.getVille();
+        if (villeLogementA == null || villeLogementB == null) return false;
+        // Deux logements dans la même ville ne s'échangent pas (surplus, APP-109)
+        if (villeLogementA.equalsIgnoreCase(villeLogementB)) return false;
+        return villeA.equalsIgnoreCase(villeLogementB)
+                && villeB.equalsIgnoreCase(villeLogementA);
     }
 
     /**
@@ -192,11 +229,17 @@ public class CompatibilityCalculator {
         return base;
     }
 
-    private String buildMessageMatchPotentiel(AlternantProfile a, AlternantProfile b, AccordType type) {
+    private String buildMessageMatchPotentiel(AccordType type,
+                                              Logement logementA, Logement logementB) {
         if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
             return "Si vous publiez vos logements respectifs, vous pourrez faire un échange avec cet alternant.";
         }
         if (type == AccordType.COLOCATION_TOURNANTE) {
+            // Cas 47 de la grille : personne n'a de logement → « lâcher son
+            // logement » n'a pas de sens, on propose d'en trouver un à deux
+            if (logementA == null && logementB == null) {
+                return "Vous avez le même rythme. Trouvez un logement à deux et divisez le loyer.";
+            }
             return "Si l'un de vous lâche son logement, vous pourrez partager les logements et diviser les loyers.";
         }
         return null;
@@ -262,7 +305,7 @@ public class CompatibilityCalculator {
 
     private MatchingResult emptyResult() {
         return new MatchingResult(0.0, null, false, null,
-                List.of(), 0, 0, 0,
+                List.of(), 0, 0, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine commune");
     }
 }

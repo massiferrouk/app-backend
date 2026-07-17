@@ -2,6 +2,7 @@ package com.studup.backend.algorithm;
 
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.CompatibiliteType;
 import com.studup.backend.model.enums.RythmeAlternance;
@@ -23,6 +24,11 @@ class PartialExchangeOptimizerTest {
     private AlternantProfile profileA;
     private AlternantProfile profileB;
 
+    // APP-110 : l'échange réel exige les logements publiés —
+    // A loge à Paris (sa villeA), B loge à Lyon (sa villeA)
+    private Logement logementA;
+    private Logement logementB;
+
     @BeforeEach
     void setUp() {
         optimizer = new PartialExchangeOptimizer(new CompatibilityCalculator());
@@ -42,6 +48,9 @@ class PartialExchangeOptimizerTest {
 
         profileB = AlternantProfile.builder().id(UUID.randomUUID()).user(userB)
                 .villeA("Lyon").villeB("Paris").rythme(RythmeAlternance.SEMAINE_3_1).build();
+
+        logementA = Logement.builder().id(UUID.randomUUID()).ville("Paris").build();
+        logementB = Logement.builder().id(UUID.randomUUID()).ville("Lyon").build();
     }
 
     // Génère 4 semaines : S1=A à Paris/B à Lyon, S2 idem, S3 idem, S4=A à Lyon/B à Paris
@@ -80,12 +89,14 @@ class PartialExchangeOptimizerTest {
     @Test
     void shouldMaximizeNonOverlappingWeeks() {
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileB, schedulesA(), schedulesB(), null);
+                profileA, profileB, schedulesA(), schedulesB(), logementA, logementB, null);
 
-        // Rythmes inversés → 4 semaines d'échange, 0 chevauchement
-        assertThat(proposal.nbSemainesEchange()).isEqualTo(4);
+        // Semaines 1-3 : chacun dans la ville du logement de l'autre → ÉCHANGE.
+        // Semaine 4 : chacun dans la ville de SON logement → neutre (APP-110),
+        // plus comptée comme un échange.
+        assertThat(proposal.nbSemainesEchange()).isEqualTo(3);
         assertThat(proposal.nbSemainesChevauchement()).isEqualTo(0);
-        assertThat(proposal.semainesProposees()).hasSize(4);
+        assertThat(proposal.semainesProposees()).hasSize(3);
         assertThat(proposal.semainesProposees())
                 .allMatch(s -> s.type() == CompatibiliteType.ECHANGE);
     }
@@ -109,7 +120,7 @@ class PartialExchangeOptimizerTest {
         );
 
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileC, schedulesA(), schedulesC, null);
+                profileA, profileC, schedulesA(), schedulesC, logementA, logementB, null);
 
         // Même rythme et même ville chaque semaine → 0 échange
         assertThat(proposal.nbSemainesEchange()).isEqualTo(0);
@@ -123,11 +134,11 @@ class PartialExchangeOptimizerTest {
         BigDecimal loyer = new BigDecimal("800.00");
 
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileB, schedulesA(), schedulesB(), loyer);
+                profileA, profileB, schedulesA(), schedulesB(), logementA, logementB, loyer);
 
-        // 4 / 4.33 = 0.92 (arrondi) × 800 = 736.00 €
+        // 3 semaines d'échange réelles (APP-110) : 3 / 4.33 = 0.69 × 800 = 552.00 €
         assertThat(proposal.economieTotale()).isGreaterThan(BigDecimal.ZERO);
-        assertThat(proposal.economieTotale()).isEqualByComparingTo(new BigDecimal("736.00"));
+        assertThat(proposal.economieTotale()).isEqualByComparingTo(new BigDecimal("552.00"));
     }
 
     // ─── shouldReturnZeroEconomieWhenNoLoyer ──────────────────────────────────
@@ -135,7 +146,7 @@ class PartialExchangeOptimizerTest {
     @Test
     void shouldReturnZeroEconomieWhenNoLoyer() {
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileB, schedulesA(), schedulesB(), null);
+                profileA, profileB, schedulesA(), schedulesB(), logementA, logementB, null);
 
         assertThat(proposal.economieTotale()).isEqualByComparingTo(BigDecimal.ZERO);
     }
@@ -159,7 +170,7 @@ class PartialExchangeOptimizerTest {
         );
 
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileD, schedulesA(), schedulesD, null);
+                profileA, profileD, schedulesA(), schedulesD, logementA, logementB, null);
 
         assertThat(proposal.messageResume()).isNotBlank();
         // Le résumé indique les semaines d'échange
@@ -171,7 +182,7 @@ class PartialExchangeOptimizerTest {
     @Test
     void shouldReturnEmptyProposalWhenNoSchedules() {
         PartialExchangeProposal proposal = optimizer.optimize(
-                profileA, profileB, List.of(), List.of(), null);
+                profileA, profileB, List.of(), List.of(), logementA, logementB, null);
 
         assertThat(proposal.nbSemainesEchange()).isEqualTo(0);
         assertThat(proposal.semainesProposees()).isEmpty();

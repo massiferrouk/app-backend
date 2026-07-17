@@ -1,6 +1,7 @@
 package com.studup.backend.model.dto.response;
 
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ public record AlternantProfileResponse(
         LocalDate dateDebut,
         LocalDate dateFin,
         RythmeAlternance rythme,
+        PremiereSemaine premiereSemaine,
         int scheduleWeeksGenerated,
         OffsetDateTime createdAt
 ) {
@@ -31,6 +33,7 @@ public record AlternantProfileResponse(
                 profile.getDateDebut(),
                 profile.getDateFin(),
                 profile.getRythme(),
+                profile.getPremiereSemaine(),
                 weeksGenerated,
                 profile.getCreatedAt()
         );

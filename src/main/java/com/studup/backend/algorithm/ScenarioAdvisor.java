@@ -36,8 +36,14 @@ public class ScenarioAdvisor {
                                  AlternantProfile profileB,
                                  Logement logementA,
                                  Logement logementB) {
-        // Pas de compatibilité → pas de scénarios
-        if (result.typePropose() == null) return List.of();
+        // Pas de compatibilité du tout (ni échange possible ni coloc) → rien.
+        // On ne se fie pas qu'au typePropose : depuis APP-110 il peut être null
+        // alors qu'un surplus même ville reste à proposer (cas 41 de la grille).
+        if (result.typePropose() == null
+                && result.nbSemainesEchangePotentiel() == 0
+                && result.nbSemainesColocation() == 0) {
+            return List.of();
+        }
 
         // ─── S6 : surplus même ville — prioritaire sur tout le reste ────
         if (estSurplusMemeVille(logementA, logementB)) {
@@ -45,12 +51,14 @@ public class ScenarioAdvisor {
         }
 
         // ─── S2/S3/S4 : logements manquants pour un échange ─────────────
-        if (result.nbSemainesEchange() > 0) {
+        // Potentiel, pas réel : ces scénarios expliquent justement quoi
+        // publier pour transformer le potentiel en échange réel (APP-110)
+        if (result.nbSemainesEchangePotentiel() > 0) {
             if (logementA == null && logementB != null) {
                 return List.of(tonLogementManque(profileA, logementB));
             }
             if (logementA != null && logementB == null) {
-                return List.of(sonLogementManque(profileB));
+                return List.of(sonLogementManque(profileB, logementA));
             }
             if (logementA == null) { // les deux manquent
                 return List.of(new Scenario(
@@ -146,13 +154,18 @@ public class ScenarioAdvisor {
                 ScenarioAction.PUBLIER_LOGEMENT);
     }
 
-    private Scenario sonLogementManque(AlternantProfile profileB) {
+    private Scenario sonLogementManque(AlternantProfile profileB, Logement logementA) {
         String prenom = profileB.getUser() != null
                 ? profileB.getUser().getFirstName()
                 : "Ton match";
+        // La ville qui manque = la ville complémentaire au logement existant
+        // (cas 48 de la grille : le message doit refléter la bonne ville,
+        // celle du LOGEMENT publié, pas la ville d'études par principe)
+        String villeManquante = capitalize(autreVille(profileB, logementA.getVille()));
         return new Scenario(
                 ScenarioType.SON_LOGEMENT_MANQUE,
-                prenom + " n'a pas encore publié son logement. "
+                prenom + " n'a pas encore publié son logement. S'il en trouve un à "
+                        + villeManquante + ", vous pourrez faire un échange. "
                         + "Contacte-le pour en discuter.",
                 BigDecimal.ZERO,
                 ScenarioAction.CONTACTER);

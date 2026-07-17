@@ -25,6 +25,12 @@ public class ScheduleGenerator {
 
     private static final int MAX_WEEKS = 52;
 
+    // Cas 53 de la grille (APP-110) : le rythme AUTRE génère un calendrier
+    // 1/1 par défaut — chaque semaine porte ce message pour que l'utilisateur
+    // sache qu'il doit ajuster manuellement (plus de faux calendrier silencieux)
+    static final String RAISON_RYTHME_AUTRE =
+            "Rythme AUTRE : calendrier par défaut 1 sem. / 1 sem. — ajustez vos semaines manuellement";
+
     /**
      * Génère la liste des semaines d'alternance pour un profil donné.
      *
@@ -50,6 +56,12 @@ public class ScheduleGenerator {
 
             String label = getLabelForWeek(i, profile.getRythme(), profile.getPremiereSemaine());
             String overrideReason = detectHolidayInWeek(semaine, datesFeries);
+
+            // Rythme AUTRE : annoter chaque semaine sans annotation férié —
+            // le calendrier par défaut doit être explicitement signalé (APP-110)
+            if (overrideReason == null && profile.getRythme() == RythmeAlternance.AUTRE) {
+                overrideReason = RAISON_RYTHME_AUTRE;
+            }
 
             schedules.add(AlternanceSchedule.builder()
                     .profile(profile)

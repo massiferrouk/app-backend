@@ -225,6 +225,56 @@ class ScheduleGeneratorTest {
         assertThat(schedules.get(3).getLabel()).isEqualTo("A");
     }
 
+    // ─── APP-110 cas 53 : rythme AUTRE explicitement annoté ──────────────────
+
+    @Test
+    void shouldAnnotateEveryAutreWeekAsDefaultCalendar() {
+        // Le rythme AUTRE génère un 1/1 par défaut — mais plus en silence :
+        // chaque semaine est annotée pour inviter à l'ajustement manuel
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.AUTRE
+        );
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules).allSatisfy(s ->
+                assertThat(s.getOverrideReason())
+                        .isEqualTo(ScheduleGenerator.RAISON_RYTHME_AUTRE)
+        );
+        // Le calendrier par défaut reste un 1/1 (A, B, A, B...)
+        assertThat(schedules.get(0).getLabel()).isEqualTo("A");
+        assertThat(schedules.get(1).getLabel()).isEqualTo("B");
+    }
+
+    @Test
+    void shouldKeepHolidayAnnotationOverAutreAnnotation() {
+        // Un jour férié est plus spécifique : il garde la priorité sur
+        // l'annotation générique AUTRE
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.AUTRE
+        );
+
+        JourFerie armistice = JourFerie.builder()
+                .id(UUID.randomUUID())
+                .dateJour(LocalDate.of(2025, 11, 11))
+                .libelle("Armistice")
+                .pays("FR")
+                .build();
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of(armistice));
+
+        AlternanceSchedule semaineArmistice = schedules.stream()
+                .filter(s -> s.getSemaine().equals(LocalDate.of(2025, 11, 10)))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(semaineArmistice.getOverrideReason()).contains("2025-11-11");
+    }
+
     // ─── Tests jours fériés ──────────────────────────────────────────────────
 
     @Test

@@ -4,6 +4,8 @@ import com.studup.backend.algorithm.ColocationMatcher;
 import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.algorithm.PartialExchangeOptimizer;
+import com.studup.backend.algorithm.Scenario;
+import com.studup.backend.algorithm.ScenarioAdvisor;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
@@ -45,6 +47,9 @@ class MatchingServiceTest {
     @Mock private CompatibilityCalculator calculator;
     @Mock private PartialExchangeOptimizer partialExchangeOptimizer;
     @Mock private ColocationMatcher colocationMatcher;
+    // @Spy : le vrai moteur de scénarios — classe pure sans dépendance,
+    // le mocker n'apporterait rien (même choix que ScheduleGenerator)
+    @org.mockito.Spy private ScenarioAdvisor scenarioAdvisor = new ScenarioAdvisor();
 
     @InjectMocks
     private MatchingService matchingService;
@@ -139,6 +144,54 @@ class MatchingServiceTest {
         // Le score le plus élevé doit être en premier
         assertThat(suggestions.get(0).score()).isEqualTo(1.0);
         assertThat(suggestions.get(1).score()).isEqualTo(0.75);
+    }
+
+    // ─── Surplus même ville : pas actif + scénarios exposés (APP-109) ─────────
+
+    @Test
+    void shouldNotBeActiveAndExposeScenariosWhenBothLogementsInSameCity() {
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(myUser));
+        when(profileRepository.findByUserId(myUser.getId())).thenReturn(Optional.of(myProfile));
+        when(profileRepository.findCandidatesWithSharedCity(any(), any(), any()))
+                .thenReturn(List.of(candidatProfile));
+        when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
+
+        // Les deux alternants ont publié un logement... dans la MÊME ville
+        com.studup.backend.model.entity.Logement monLogement =
+                com.studup.backend.model.entity.Logement.builder()
+                        .id(UUID.randomUUID()).owner(myUser)
+                        .ville("Paris").loyer(new BigDecimal("700"))
+                        .statut(com.studup.backend.model.enums.LogementStatut.ACTIF)
+                        .villeAssociee(com.studup.backend.model.enums.VilleAssociee.VILLE_A)
+                        .build();
+        com.studup.backend.model.entity.Logement sonLogement =
+                com.studup.backend.model.entity.Logement.builder()
+                        .id(UUID.randomUUID()).owner(candidatProfile.getUser())
+                        .ville("paris").loyer(new BigDecimal("550"))
+                        .statut(com.studup.backend.model.enums.LogementStatut.ACTIF)
+                        .villeAssociee(com.studup.backend.model.enums.VilleAssociee.VILLE_A)
+                        .build();
+        when(logementRepository.findByOwnerId(myUser.getId()))
+                .thenReturn(List.of(monLogement));
+        when(logementRepository.findByOwnerId(candidatProfile.getUser().getId()))
+                .thenReturn(List.of(sonLogement));
+
+        MatchingResult echangeTotal = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
+                false, null, List.of(), 4, 0, 0,
+                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        when(calculator.calculate(any(), any(), any(), any(), any(), any()))
+                .thenReturn(echangeTotal);
+
+        List<MatchingSuggestionResponse> suggestions =
+                matchingService.getSuggestions("alice@studup.fr");
+
+        assertThat(suggestions).hasSize(1);
+        // Bug corrigé : deux logements même ville ≠ échange signable
+        assertThat(suggestions.get(0).isMatchActif()).isFalse();
+        // Le moteur de scénarios propose les options (relais en tête)
+        assertThat(suggestions.get(0).scenarios()).isNotEmpty();
+        assertThat(suggestions.get(0).scenarios().get(0).type())
+                .isEqualTo(Scenario.ScenarioType.RELAIS.name());
     }
 
     // ─── Inclusion des matchs potentiels ──────────────────────────────────────

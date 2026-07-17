@@ -1,6 +1,7 @@
 package com.studup.backend.model.dto.response;
 
 import com.studup.backend.algorithm.MatchingResult;
+import com.studup.backend.algorithm.Scenario;
 import com.studup.backend.algorithm.SemaineCompatibilite;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.enums.AccordType;
@@ -32,7 +33,10 @@ public record MatchingSuggestionResponse(
         UUID logementBId,   // logement du candidat (destinataire)
         // Économie mensuelle estimée pour l'utilisateur connecté, en euros
         // entiers. ZERO = pas calculable (loyers inconnus) → rien à afficher.
-        BigDecimal economieMensuelle
+        BigDecimal economieMensuelle,
+        // Scénarios d'arrangement possibles, triés par priorité d'affichage :
+        // le premier est le scénario principal de la match card (APP-109).
+        List<ScenarioResponse> scenarios
 ) {
     /**
      * isMatchActif et les IDs de logements sont calculés dans le MatchingService
@@ -43,7 +47,8 @@ public record MatchingSuggestionResponse(
                                                   MatchingResult result,
                                                   boolean isMatchActif,
                                                   UUID logementAId,
-                                                  UUID logementBId) {
+                                                  UUID logementBId,
+                                                  List<Scenario> scenarios) {
         return new MatchingSuggestionResponse(
                 profile.getId(),
                 profile.getUser().getId(),
@@ -63,7 +68,8 @@ public record MatchingSuggestionResponse(
                 result.semaines(),
                 logementAId,
                 logementBId,
-                result.economieEstimeeMax()
+                result.economieEstimeeMax(),
+                scenarios.stream().map(ScenarioResponse::from).toList()
         );
     }
 }

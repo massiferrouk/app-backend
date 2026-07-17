@@ -129,7 +129,8 @@ public class CompatibilityCalculator {
         // Match actif = les deux alternants ont les logements nécessaires publiés
         // Pour l'instant on retourne false — sera enrichi dans MatchingService
         boolean isMatchActif = false;
-        String messageMatchPotentiel = buildMessageMatchPotentiel(profileA, profileB, typePropose);
+        String messageMatchPotentiel = buildMessageMatchPotentiel(
+                typePropose, logementA, logementB);
 
         // Économie mensuelle estimée du point de vue de A (APP-103).
         // min = ce qui est certain avec les loyers connus, max = identique
@@ -228,11 +229,17 @@ public class CompatibilityCalculator {
         return base;
     }
 
-    private String buildMessageMatchPotentiel(AlternantProfile a, AlternantProfile b, AccordType type) {
+    private String buildMessageMatchPotentiel(AccordType type,
+                                              Logement logementA, Logement logementB) {
         if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
             return "Si vous publiez vos logements respectifs, vous pourrez faire un échange avec cet alternant.";
         }
         if (type == AccordType.COLOCATION_TOURNANTE) {
+            // Cas 47 de la grille : personne n'a de logement → « lâcher son
+            // logement » n'a pas de sens, on propose d'en trouver un à deux
+            if (logementA == null && logementB == null) {
+                return "Vous avez le même rythme. Trouvez un logement à deux et divisez le loyer.";
+            }
             return "Si l'un de vous lâche son logement, vous pourrez partager les logements et diviser les loyers.";
         }
         return null;

@@ -58,7 +58,7 @@ public class ScenarioAdvisor {
                 return List.of(tonLogementManque(profileA, logementB));
             }
             if (logementA != null && logementB == null) {
-                return List.of(sonLogementManque(profileB));
+                return List.of(sonLogementManque(profileB, logementA));
             }
             if (logementA == null) { // les deux manquent
                 return List.of(new Scenario(
@@ -154,13 +154,18 @@ public class ScenarioAdvisor {
                 ScenarioAction.PUBLIER_LOGEMENT);
     }
 
-    private Scenario sonLogementManque(AlternantProfile profileB) {
+    private Scenario sonLogementManque(AlternantProfile profileB, Logement logementA) {
         String prenom = profileB.getUser() != null
                 ? profileB.getUser().getFirstName()
                 : "Ton match";
+        // La ville qui manque = la ville complémentaire au logement existant
+        // (cas 48 de la grille : le message doit refléter la bonne ville,
+        // celle du LOGEMENT publié, pas la ville d'études par principe)
+        String villeManquante = capitalize(autreVille(profileB, logementA.getVille()));
         return new Scenario(
                 ScenarioType.SON_LOGEMENT_MANQUE,
-                prenom + " n'a pas encore publié son logement. "
+                prenom + " n'a pas encore publié son logement. S'il en trouve un à "
+                        + villeManquante + ", vous pourrez faire un échange. "
                         + "Contacte-le pour en discuter.",
                 BigDecimal.ZERO,
                 ScenarioAction.CONTACTER);

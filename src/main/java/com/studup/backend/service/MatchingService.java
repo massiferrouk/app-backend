@@ -6,6 +6,8 @@ import com.studup.backend.algorithm.CompatibilityCalculator;
 import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.algorithm.PartialExchangeOptimizer;
 import com.studup.backend.algorithm.PartialExchangeProposal;
+import com.studup.backend.algorithm.Scenario;
+import com.studup.backend.algorithm.ScenarioAdvisor;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.ColocationResponse;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
@@ -38,6 +40,7 @@ public class MatchingService {
     private final CompatibilityCalculator calculator;
     private final PartialExchangeOptimizer partialExchangeOptimizer;
     private final ColocationMatcher colocationMatcher;
+    private final ScenarioAdvisor scenarioAdvisor;
 
     public MatchingService(AlternantProfileRepository profileRepository,
                            AlternanceScheduleRepository scheduleRepository,
@@ -45,7 +48,8 @@ public class MatchingService {
                            LogementRepository logementRepository,
                            CompatibilityCalculator calculator,
                            PartialExchangeOptimizer partialExchangeOptimizer,
-                           ColocationMatcher colocationMatcher) {
+                           ColocationMatcher colocationMatcher,
+                           ScenarioAdvisor scenarioAdvisor) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
@@ -53,6 +57,7 @@ public class MatchingService {
         this.calculator = calculator;
         this.partialExchangeOptimizer = partialExchangeOptimizer;
         this.colocationMatcher = colocationMatcher;
+        this.scenarioAdvisor = scenarioAdvisor;
     }
 
     @Transactional(readOnly = true)
@@ -97,12 +102,17 @@ public class MatchingService {
                             myLogement, candidateLogement);
 
                     // Match ACTIF = un accord est signable immédiatement.
-                    // Pour un échange, il faut que les DEUX aient publié leur logement.
                     boolean isMatchActif = isMatchActif(
-                            result.typePropose(), myLogementId, candidateLogementId);
+                            result.typePropose(), myLogement, candidateLogement);
+
+                    // Scénarios d'arrangement (APP-109) — messages conditionnels
+                    // et options de réorganisation (surplus même ville...)
+                    List<Scenario> scenarios = scenarioAdvisor.advise(
+                            result, myProfile, candidate, myLogement, candidateLogement);
 
                     return MatchingSuggestionResponse.from(
-                            candidate, result, isMatchActif, myLogementId, candidateLogementId);
+                            candidate, result, isMatchActif,
+                            myLogementId, candidateLogementId, scenarios);
                 })
                 // Filtre les profils sans aucune compatibilité (typePropose null)
                 .filter(s -> s.typePropose() != null)
@@ -177,13 +187,16 @@ public class MatchingService {
     /**
      * Un match est ACTIF quand un accord peut être signé immédiatement.
      * Pour un échange (total ou partiel), les deux alternants doivent avoir
-     * publié et associé leur logement. Sinon c'est un match potentiel.
+     * publié leur logement DANS DES VILLES DIFFÉRENTES : deux logements dans
+     * la même ville ne permettent pas un échange croisé (bug corrigé en
+     * APP-109 — ce cas est un surplus, géré par le moteur de scénarios).
      */
-    private boolean isMatchActif(AccordType type, UUID myLogementId, UUID candidateLogementId) {
+    private boolean isMatchActif(AccordType type, Logement myLogement, Logement candidateLogement) {
         if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
-            return myLogementId != null && candidateLogementId != null;
+            return myLogement != null && candidateLogement != null
+                    && !myLogement.getVille().equalsIgnoreCase(candidateLogement.getVille());
         }
         // Colocation et autres types : au moins un logement disponible côté candidat
-        return candidateLogementId != null;
+        return candidateLogement != null;
     }
 }

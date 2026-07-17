@@ -45,7 +45,8 @@ class MatchingControllerTest {
                 "Publiez vos logements pour activer ce match",
                 3, 0, 1, "résumé", List.of(),
                 UUID.randomUUID(), UUID.randomUUID(),
-                new java.math.BigDecimal("225")
+                new java.math.BigDecimal("225"),
+                List.of()
         );
     }
 

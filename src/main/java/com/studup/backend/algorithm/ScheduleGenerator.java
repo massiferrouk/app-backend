@@ -73,6 +73,9 @@ public class ScheduleGenerator {
         return switch (rythme) {
             // 1 semaine école (A), 1 semaine entreprise (B), en alternant
             case SEMAINE_1_1 -> weekIndex % 2 == 0 ? "A" : "B";
+            // 2 semaines école (A) + 2 semaines entreprise (B) — provisoire,
+            // l'ordre de départ sera piloté par premiereSemaine (APP-110 étape 5)
+            case SEMAINE_2_2 -> weekIndex % 4 < 2 ? "A" : "B";
             // 3 semaines entreprise (B) + 1 semaine école (A)
             case SEMAINE_3_1 -> weekIndex % 4 == 3 ? "A" : "B";
             // 4 semaines école (A) + 4 semaines entreprise (B)

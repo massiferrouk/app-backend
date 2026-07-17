@@ -5,8 +5,10 @@ import com.studup.backend.algorithm.MatchingResult;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.AccordType;
 import com.studup.backend.model.enums.CompatibiliteType;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternantProfileRepository;
@@ -44,27 +46,36 @@ class MatchingIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private AlternantProfileRepository profileRepository;
 
-    // ─── rythmes inverses → ECHANGE_TOTAL avec score = 1.0 ──────────────────
+    // ─── rythmes inverses + logements publiés → échange 75 % (APP-110) ───────
 
     @Test
-    void shouldReturnEchangeTotalForInverseRythms() {
-        // Profil A : 3 semaines Paris / 1 semaine Lyon (SEMAINE_3_1)
+    void shouldReturnEchange75ForInverseRythms() {
+        // Profil A : 3 semaines Paris / 1 semaine Lyon (SEMAINE_3_1), logement à Lyon
         AlternantProfile profileA = buildProfile("Paris", "Lyon");
         List<AlternanceSchedule> schedulesA = buildSchedules3_1(profileA, "A", LocalDate.of(2026, 1, 5));
 
-        // Profil B : rythme inverse — villeA=Lyon, label "A" = Lyon pendant que A est à Paris → ÉCHANGE
+        // Profil B : rythme inverse — à Lyon pendant que A est à Paris, logement à Paris
         AlternantProfile profileB = buildProfile("Lyon", "Paris");
         List<AlternanceSchedule> schedulesB = buildSchedules3_1(profileB, "A", LocalDate.of(2026, 1, 5));
 
-        // MatchingResult est un record Java — on utilise les accesseurs record (sans "get")
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+        // Logements transients (non persistés) : le calculateur ne lit que la ville.
+        // Règle §3 APP-110 : 3 semaines sur 4, chacun est dans la ville du
+        // logement de l'autre → ÉCHANGE ; la 4e, chacun chez soi → neutre.
+        Logement logementA = Logement.builder().ville("Lyon").build();
+        Logement logementB = Logement.builder().ville("Paris").build();
 
-        assertThat(result.score()).isGreaterThanOrEqualTo(0.90);
-        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
-        assertThat(result.nbSemainesEchange()).isGreaterThan(0);
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB, logementA, logementB);
+
+        assertThat(result.score()).isEqualTo(0.75);
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
+        assertThat(result.nbSemainesEchange()).isEqualTo(39);   // 3 semaines × 13 cycles
+        assertThat(result.nbSemainesEchangePotentiel()).isEqualTo(52);
         assertThat(result.semaines()).isNotEmpty();
+        // Plus aucune semaine COLOCATION : uniquement de l'échange et du neutre
         assertThat(result.semaines()).allSatisfy(s ->
-                assertThat(s.type()).isEqualTo(CompatibiliteType.ECHANGE));
+                assertThat(s.type()).isIn(
+                        CompatibiliteType.ECHANGE, CompatibiliteType.INCOMPATIBLE));
     }
 
     // ─── même rythme, mêmes villes → COLOCATION_TOURNANTE ───────────────────
@@ -174,6 +185,8 @@ class MatchingIntegrationTest extends AbstractIntegrationTest {
                 .dateDebut(LocalDate.of(2026, 1, 1))
                 .dateFin(LocalDate.of(2026, 12, 31))
                 .rythme(RythmeAlternance.SEMAINE_3_1)
+                // NOT NULL depuis la migration V24 (APP-110)
+                .premiereSemaine(PremiereSemaine.ENTREPRISE)
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now())
                 .build());
     }

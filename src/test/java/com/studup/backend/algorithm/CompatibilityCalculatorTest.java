@@ -59,31 +59,36 @@ class CompatibilityCalculatorTest {
     // ─── CAS 1 : Échange total — rythmes inverses ─────────────────────────────
 
     @Test
-    void shouldReturnEchangeTotalWhenRythmsAreInversed() {
-        // A : Paris / Paris / Paris / Lyon  (SEMAINE_3_1)
-        // B : Lyon  / Lyon  / Lyon  / Paris (rythme miroir)
-        // Chaque semaine : A est dans la ville de B et vice-versa → ECHANGE
+    void shouldReturnEchange75PctWhenRythmsAreInversed() {
+        // A : Lyon / Lyon / Lyon / Paris  (SEMAINE_3_1, logement à Paris)
+        // B : Paris / Paris / Paris / Lyon (rythme miroir, logement à Lyon)
+        // Semaines 1-3 : chacun dans la ville du logement de l'autre → ECHANGE
+        // Semaine 4 : chacun dans la ville de SON logement → chacun chez soi
+        // (règle §3 APP-110 : révisé — avant, la semaine 4 comptait à tort
+        // comme un échange et le score affichait 100 %)
         List<AlternanceSchedule> schedulesA = List.of(
-                schedule(profileA, SEMAINE_1, "B"), // B = Lyon pour A → mais A est à villeB
+                schedule(profileA, SEMAINE_1, "B"), // A à Lyon (villeB de A)
                 schedule(profileA, SEMAINE_2, "B"),
                 schedule(profileA, SEMAINE_3, "B"),
-                schedule(profileA, SEMAINE_4, "A")  // A = Paris pour A
+                schedule(profileA, SEMAINE_4, "A")  // A à Paris
         );
 
         // B a les villes inversées : villeA=Lyon, villeB=Paris
-        // Pour que B soit à Paris (villeB), il faut label="B"
         List<AlternanceSchedule> schedulesB = List.of(
-                schedule(profileB, SEMAINE_1, "B"), // B = Paris pour B → échange avec A à Lyon
+                schedule(profileB, SEMAINE_1, "B"), // B à Paris (villeB de B)
                 schedule(profileB, SEMAINE_2, "B"),
                 schedule(profileB, SEMAINE_3, "B"),
-                schedule(profileB, SEMAINE_4, "A")  // A = Lyon pour B → échange avec A à Paris
+                schedule(profileB, SEMAINE_4, "A")  // B à Lyon
         );
 
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB,
+                logement("Paris", "650"), logement("Lyon", "900"));
 
-        assertThat(result.score()).isEqualTo(1.0);
-        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
-        assertThat(result.nbSemainesEchange()).isEqualTo(4);
+        assertThat(result.score()).isEqualTo(0.75);
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
+        assertThat(result.nbSemainesEchange()).isEqualTo(3);
+        assertThat(result.nbSemainesEchangePotentiel()).isEqualTo(4);
         assertThat(result.nbSemainesColocation()).isEqualTo(0);
         assertThat(result.nbSemainesChevauchement()).isEqualTo(0);
     }
@@ -122,14 +127,14 @@ class CompatibilityCalculatorTest {
 
     @Test
     void shouldReturnEchangePartielWhenPartialOverlap() {
-        // A : Lyon / Lyon / Lyon / Paris  (SEMAINE_3_1, commence en entreprise)
-        // B : Paris / Lyon / Paris / Lyon (SEMAINE_1_1)
-        // Semaine 1 : A à Lyon, B à Paris  → ECHANGE ✓
+        // A : Lyon / Lyon / Lyon / Paris  (SEMAINE_3_1, logement à Paris)
+        // B : Paris / Lyon / Paris / Lyon (SEMAINE_1_1, logement à Lyon)
+        // Semaine 1 : A à Lyon, B à Paris  → ECHANGE (chacun chez l'autre) ✓
         // Semaine 2 : A à Lyon, B à Lyon   → COLOCATION
         // Semaine 3 : A à Lyon, B à Paris  → ECHANGE ✓
-        // Semaine 4 : A à Paris, B à Lyon  → ECHANGE ✓
-        // APP-108 : score = (3 échange + 1 coloc)/4 = 1.0, mais 3 échange
-        // sur 4 → ECHANGE_PARTIEL (pas 100 % d'échange).
+        // Semaine 4 : A à Paris, B à Lyon  → chacun dans la ville de SON
+        //             logement → neutre (règle §3 APP-110)
+        // Score = (2 échange + 1 coloc)/4 = 0.75 → ECHANGE_PARTIEL.
 
         AlternantProfile profBPartiel = AlternantProfile.builder()
                 .id(UUID.randomUUID())
@@ -151,11 +156,13 @@ class CompatibilityCalculatorTest {
                 schedule(profBPartiel, SEMAINE_4, "B")   // Lyon
         );
 
-        MatchingResult result = calculator.calculate(profileA, profBPartiel, schedulesA, schedulesB);
+        MatchingResult result = calculator.calculate(profileA, profBPartiel,
+                schedulesA, schedulesB,
+                logement("Paris", "650"), logement("Lyon", "900"));
 
-        assertThat(result.score()).isEqualTo(1.0);
+        assertThat(result.score()).isEqualTo(0.75);
         assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
-        assertThat(result.nbSemainesEchange()).isEqualTo(3);
+        assertThat(result.nbSemainesEchange()).isEqualTo(2);
         assertThat(result.nbSemainesColocation()).isEqualTo(1);
     }
 
@@ -262,7 +269,11 @@ class CompatibilityCalculatorTest {
                 schedule(profileB, SEMAINE_1, "B")   // B à Paris (villeB de B)
         );
 
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+        // APP-110 : l'échange RÉEL exige les logements publiés —
+        // A loge à Paris, B loge à Lyon → chacun est chez l'autre cette semaine
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB,
+                logement("Paris", "650"), logement("Lyon", "900"));
 
         assertThat(result.semaines()).hasSize(1);
         SemaineCompatibilite s = result.semaines().get(0);
@@ -302,13 +313,13 @@ class CompatibilityCalculatorTest {
 
     @Test
     void shouldMakeMixedCaseVisible() {
-        // A Paris/Lyon, B Lyon/Paris (villes inversées), rythmes décalés :
-        // W1 : A=Paris, B=Lyon  → ÉCHANGE
+        // A Paris/Lyon (logement Lyon), B Lyon/Paris (logement Paris),
+        // rythmes décalés :
+        // W1 : A=Paris, B=Lyon  → ÉCHANGE (chacun dans la ville du logement de l'autre)
         // W2 : A=Paris, B=Paris → COLOC
         // W3 : A=Lyon,  B=Lyon  → COLOC
-        // W4 : A=Lyon,  B=Paris → ÉCHANGE
-        // Avant APP-108 : score = 2/4 = 0.50 → sous le seuil, match INVISIBLE.
-        // Après : score = (2+2)/4 = 1.0 → ECHANGE_PARTIEL, match visible.
+        // W4 : A=Lyon,  B=Paris → chacun dans la ville de SON logement → neutre (APP-110)
+        // Score = (1+2)/4 = 0.75 → ECHANGE_PARTIEL, match visible.
         List<AlternanceSchedule> schedulesA = List.of(
                 schedule(profileA, SEMAINE_1, "A"),  // Paris
                 schedule(profileA, SEMAINE_2, "A"),  // Paris
@@ -320,11 +331,14 @@ class CompatibilityCalculatorTest {
                 schedule(profileB, SEMAINE_3, "A"),  // Lyon
                 schedule(profileB, SEMAINE_4, "B")); // Paris
 
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB,
+                logement("Lyon", "650"), logement("Paris", "900"));
 
         assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
-        assertThat(result.score()).isEqualTo(1.0);
-        assertThat(result.nbSemainesEchange()).isEqualTo(2);
+        assertThat(result.score()).isEqualTo(0.75);
+        assertThat(result.nbSemainesEchange()).isEqualTo(1);
+        assertThat(result.nbSemainesEchangePotentiel()).isEqualTo(2);
         assertThat(result.nbSemainesColocation()).isEqualTo(2);
     }
 
@@ -377,6 +391,8 @@ class CompatibilityCalculatorTest {
         // A : Lyon 3 semaines puis Paris 1 semaine ; B : rythme miroir.
         // Le logement de B est à Lyon (900 €) : A l'occupe les 3 semaines où
         // il est à Lyon → économie = 900 × 3/4 = 675 €/mois.
+        // APP-110 : la semaine 4 (chacun chez soi) n'est plus un échange
+        // → 3/4 d'échange = ECHANGE_PARTIEL, plus ECHANGE_TOTAL.
         List<AlternanceSchedule> schedulesA = List.of(
                 schedule(profileA, SEMAINE_1, "B"),
                 schedule(profileA, SEMAINE_2, "B"),
@@ -392,7 +408,7 @@ class CompatibilityCalculatorTest {
                 profileA, profileB, schedulesA, schedulesB,
                 logement("Paris", "650"), logement("Lyon", "900"));
 
-        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
         assertThat(result.economieEstimeeMax()).isEqualByComparingTo("675");
         assertThat(result.economieEstimeeMin()).isEqualByComparingTo("675");
     }

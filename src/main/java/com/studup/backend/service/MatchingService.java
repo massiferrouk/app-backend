@@ -114,8 +114,10 @@ public class MatchingService {
                             candidate, result, isMatchActif,
                             myLogementId, candidateLogementId, scenarios);
                 })
-                // Filtre les profils sans aucune compatibilité (typePropose null)
-                .filter(s -> s.typePropose() != null)
+                // Filtre les profils sans aucune compatibilité : ni type
+                // d'accord proposé, ni scénario d'arrangement (APP-110 — un
+                // surplus même ville a un typePropose null mais des scénarios)
+                .filter(s -> s.typePropose() != null || !s.scenarios().isEmpty())
                 // Matchs actifs en premier, puis tri par score décroissant
                 .sorted(Comparator
                         .comparing(MatchingSuggestionResponse::isMatchActif).reversed()
@@ -137,9 +139,13 @@ public class MatchingService {
         var schedulesA = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileA.getId());
         var schedulesB = scheduleRepository.findByProfileIdOrderBySemaineAsc(profileB.getId());
 
+        // Logements publiés : nécessaires pour les semaines d'échange réelles (APP-110)
+        Logement logementA = findLogementPublieAssocie(userId1);
+        Logement logementB = findLogementPublieAssocie(userId2);
+
         // loyerMensuel null : économie calculée à zéro (logements pas encore liés aux profils)
         PartialExchangeProposal proposal = partialExchangeOptimizer.optimize(
-                profileA, profileB, schedulesA, schedulesB, null);
+                profileA, profileB, schedulesA, schedulesB, logementA, logementB, null);
 
         return PartialExchangeResponse.from(proposal);
     }

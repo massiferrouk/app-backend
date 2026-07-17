@@ -2,6 +2,7 @@ package com.studup.backend.algorithm;
 
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.CompatibiliteType;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,9 @@ public class PartialExchangeOptimizer {
      * Retourne les semaines d'échange possibles entre deux alternants
      * et l'économie estimée si un loyer mensuel est fourni.
      *
+     * [logementA] / [logementB] : logements publiés — sans eux, plus aucune
+     * semaine d'échange réelle n'existe (règle §3, APP-110).
+     *
      * @param loyerMensuel loyer mensuel de référence (null = économie non calculée)
      */
     public PartialExchangeProposal optimize(
@@ -37,9 +41,12 @@ public class PartialExchangeOptimizer {
             AlternantProfile profileB,
             List<AlternanceSchedule> schedulesA,
             List<AlternanceSchedule> schedulesB,
+            Logement logementA,
+            Logement logementB,
             BigDecimal loyerMensuel) {
 
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB, logementA, logementB);
 
         // Filtre uniquement les semaines d'échange (VERT)
         List<SemaineCompatibilite> semainesEchange = result.semaines().stream()

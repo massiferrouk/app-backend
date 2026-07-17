@@ -65,8 +65,10 @@ class ScenarioAdvisorTest {
             semaines.add(SemaineCompatibilite.of(
                     LUNDI.plusWeeks(10 + i), "paris", "paris", CompatibiliteType.COLOCATION));
         }
+        // potentiel = nbEchange : dans ces tests unitaires les semaines
+        // d'échange simulées sont aussi des semaines potentielles
         return new MatchingResult(1.0, type, false, null, semaines,
-                nbEchange, nbColocParis, 0,
+                nbEchange, nbEchange, nbColocParis, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "");
     }
 

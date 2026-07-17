@@ -16,6 +16,7 @@ import com.studup.backend.model.enums.RythmeAlternance;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ class CalendrierServiceTest {
     @Mock private AlternantProfileRepository profileRepository;
     @Mock private AlternanceScheduleRepository scheduleRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LogementRepository logementRepository;
     @Mock private CompatibilityCalculator calculator;
     @Mock private RedisTemplate<String, Object> redisTemplate;
 
@@ -125,10 +127,10 @@ class CalendrierServiceTest {
         );
 
         MatchingResult result = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, null, semaines, 4, 0, 0,
+                false, null, semaines, 4, 4, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "4 sem d'échange");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(result);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
         List<SemaineCompatibilite> response = calendrierService.getCalendrierCompatibilite(userId1, userId2);
 
@@ -154,10 +156,10 @@ class CalendrierServiceTest {
         );
 
         MatchingResult result = new MatchingResult(0.33, AccordType.ECHANGE_PARTIEL,
-                false, null, semaines, 1, 1, 1,
+                false, null, semaines, 1, 1, 1, 1,
                 BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(result);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
         List<SemaineCompatibilite> response = calendrierService.getCalendrierCompatibilite(userId1, userId2);
 
@@ -198,10 +200,10 @@ class CalendrierServiceTest {
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
         MatchingResult result = new MatchingResult(0.0, null,
-                false, null, List.of(), 0, 0, 0,
+                false, null, List.of(), 0, 0, 0, 0,
                 BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine");
 
-        when(calculator.calculate(any(), any(), any(), any())).thenReturn(result);
+        when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
         List<SemaineCompatibilite> response = calendrierService.getCalendrierCompatibilite(userId1, userId2);
 

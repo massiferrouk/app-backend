@@ -36,8 +36,14 @@ public class ScenarioAdvisor {
                                  AlternantProfile profileB,
                                  Logement logementA,
                                  Logement logementB) {
-        // Pas de compatibilité → pas de scénarios
-        if (result.typePropose() == null) return List.of();
+        // Pas de compatibilité du tout (ni échange possible ni coloc) → rien.
+        // On ne se fie pas qu'au typePropose : depuis APP-110 il peut être null
+        // alors qu'un surplus même ville reste à proposer (cas 41 de la grille).
+        if (result.typePropose() == null
+                && result.nbSemainesEchangePotentiel() == 0
+                && result.nbSemainesColocation() == 0) {
+            return List.of();
+        }
 
         // ─── S6 : surplus même ville — prioritaire sur tout le reste ────
         if (estSurplusMemeVille(logementA, logementB)) {
@@ -45,7 +51,9 @@ public class ScenarioAdvisor {
         }
 
         // ─── S2/S3/S4 : logements manquants pour un échange ─────────────
-        if (result.nbSemainesEchange() > 0) {
+        // Potentiel, pas réel : ces scénarios expliquent justement quoi
+        // publier pour transformer le potentiel en échange réel (APP-110)
+        if (result.nbSemainesEchangePotentiel() > 0) {
             if (logementA == null && logementB != null) {
                 return List.of(tonLogementManque(profileA, logementB));
             }

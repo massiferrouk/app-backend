@@ -3,6 +3,7 @@ package com.studup.backend.algorithm;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.JourFerie;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -136,6 +137,92 @@ class ScheduleGeneratorTest {
         for (int i = 4; i < 8; i++) {
             assertThat(schedules.get(i).getLabel()).isEqualTo("B");
         }
+    }
+
+    // ─── APP-110 : les 8 motifs rythme × première semaine (grille bloc 1) ────
+    // Codes du document cas-de-test-matching.md — A = école (É), B = entreprise (E)
+
+    // Concatène les labels des [nbSemaines] premières semaines en une chaîne
+    private String motif(RythmeAlternance rythme, PremiereSemaine premiere, int nbSemaines) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < nbSemaines; i++) {
+            sb.append(generator.getLabelForWeek(i, rythme, premiere));
+        }
+        return sb.toString();
+    }
+
+    @Test
+    void shouldGenerateMotifA1_3EntreprisePuis1Ecole() {
+        assertThat(motif(RythmeAlternance.SEMAINE_3_1, PremiereSemaine.ENTREPRISE, 8))
+                .isEqualTo("BBBABBBA");
+    }
+
+    @Test
+    void shouldGenerateMotifA2_1EcolePuis3Entreprise() {
+        assertThat(motif(RythmeAlternance.SEMAINE_3_1, PremiereSemaine.ECOLE, 8))
+                .isEqualTo("ABBBABBB");
+    }
+
+    @Test
+    void shouldGenerateMotifB1_2EntreprisePuis2Ecole() {
+        assertThat(motif(RythmeAlternance.SEMAINE_2_2, PremiereSemaine.ENTREPRISE, 8))
+                .isEqualTo("BBAABBAA");
+    }
+
+    @Test
+    void shouldGenerateMotifB2_2EcolePuis2Entreprise() {
+        assertThat(motif(RythmeAlternance.SEMAINE_2_2, PremiereSemaine.ECOLE, 8))
+                .isEqualTo("AABBAABB");
+    }
+
+    @Test
+    void shouldGenerateMotifC1_1EntreprisePuis1Ecole() {
+        assertThat(motif(RythmeAlternance.SEMAINE_1_1, PremiereSemaine.ENTREPRISE, 4))
+                .isEqualTo("BABA");
+    }
+
+    @Test
+    void shouldGenerateMotifC2_1EcolePuis1Entreprise() {
+        assertThat(motif(RythmeAlternance.SEMAINE_1_1, PremiereSemaine.ECOLE, 4))
+                .isEqualTo("ABAB");
+    }
+
+    @Test
+    void shouldGenerateMotifD1_1MoisEntreprisePuis1MoisEcole() {
+        assertThat(motif(RythmeAlternance.MOIS_1_1, PremiereSemaine.ENTREPRISE, 8))
+                .isEqualTo("BBBBAAAA");
+    }
+
+    @Test
+    void shouldGenerateMotifD2_1MoisEcolePuis1MoisEntreprise() {
+        assertThat(motif(RythmeAlternance.MOIS_1_1, PremiereSemaine.ECOLE, 8))
+                .isEqualTo("AAAABBBB");
+    }
+
+    @Test
+    void shouldFallBackToLegacyOrderWhenPremiereSemaineIsNull() {
+        // Profils d'avant la migration V24 : 3-1 commence entreprise, 1-1 école
+        assertThat(motif(RythmeAlternance.SEMAINE_3_1, null, 4)).isEqualTo("BBBA");
+        assertThat(motif(RythmeAlternance.SEMAINE_1_1, null, 4)).isEqualTo("ABAB");
+        assertThat(motif(RythmeAlternance.MOIS_1_1, null, 8)).isEqualTo("AAAABBBB");
+    }
+
+    @Test
+    void shouldUsePremiereSemaineFromProfile() {
+        // Vérifie le branchement de bout en bout : profil → generateSchedule
+        AlternantProfile profile = buildProfile(
+                LocalDate.of(2025, 9, 1),
+                LocalDate.of(2026, 8, 31),
+                RythmeAlternance.SEMAINE_2_2
+        );
+        profile.setPremiereSemaine(PremiereSemaine.ENTREPRISE);
+
+        List<AlternanceSchedule> schedules = generator.generateSchedule(profile, Set.of());
+
+        assertThat(schedules.get(0).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(1).getLabel()).isEqualTo("B");
+        assertThat(schedules.get(2).getLabel()).isEqualTo("A");
+        assertThat(schedules.get(3).getLabel()).isEqualTo("A");
     }
 
     // ─── Tests jours fériés ──────────────────────────────────────────────────

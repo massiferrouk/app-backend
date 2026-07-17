@@ -3,6 +3,7 @@ package com.studup.backend.algorithm;
 import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.JourFerie;
+import com.studup.backend.model.enums.PremiereSemaine;
 import com.studup.backend.model.enums.RythmeAlternance;
 import org.springframework.stereotype.Component;
 
@@ -47,7 +48,7 @@ public class ScheduleGenerator {
 
             if (semaine.isAfter(profile.getDateFin())) break;
 
-            String label = getLabelForWeek(i, profile.getRythme());
+            String label = getLabelForWeek(i, profile.getRythme(), profile.getPremiereSemaine());
             String overrideReason = detectHolidayInWeek(semaine, datesFeries);
 
             schedules.add(AlternanceSchedule.builder()
@@ -68,21 +69,44 @@ public class ScheduleGenerator {
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
     }
 
-    // Détermine le label A ou B d'une semaine selon le rythme d'alternance.
-    public String getLabelForWeek(int weekIndex, RythmeAlternance rythme) {
-        return switch (rythme) {
-            // 1 semaine école (A), 1 semaine entreprise (B), en alternant
-            case SEMAINE_1_1 -> weekIndex % 2 == 0 ? "A" : "B";
-            // 2 semaines école (A) + 2 semaines entreprise (B) — provisoire,
-            // l'ordre de départ sera piloté par premiereSemaine (APP-110 étape 5)
-            case SEMAINE_2_2 -> weekIndex % 4 < 2 ? "A" : "B";
-            // 3 semaines entreprise (B) + 1 semaine école (A)
-            case SEMAINE_3_1 -> weekIndex % 4 == 3 ? "A" : "B";
-            // 4 semaines école (A) + 4 semaines entreprise (B)
-            case MOIS_1_1 -> weekIndex % 8 < 4 ? "A" : "B";
-            // Rythme non standard : pattern 1/1 par défaut
-            case AUTRE -> weekIndex % 2 == 0 ? "A" : "B";
+    /**
+     * Détermine le label A (école) ou B (entreprise) d'une semaine (APP-110).
+     * Le rythme fixe la longueur des blocs école/entreprise, [premiereSemaine]
+     * fixe lequel des deux blocs ouvre le cycle — c'est ce qui permet de
+     * représenter les rythmes inversés (ex. 1 école PUIS 3 entreprise).
+     *
+     * [premiereSemaine] null (profils d'avant la migration V24, anciens tests) :
+     * on retombe sur l'ordre historiquement codé en dur via defaultFor().
+     */
+    public String getLabelForWeek(int weekIndex, RythmeAlternance rythme,
+                                  PremiereSemaine premiereSemaine) {
+        PremiereSemaine ordre = premiereSemaine != null
+                ? premiereSemaine
+                : PremiereSemaine.defaultFor(rythme);
+
+        // Longueur des blocs {école, entreprise} par cycle
+        int blocEcole = switch (rythme) {
+            case SEMAINE_1_1, AUTRE -> 1;   // AUTRE : approximation 1/1 par défaut
+            case SEMAINE_2_2 -> 2;
+            case SEMAINE_3_1 -> 1;          // toujours 1 école pour 3 entreprise
+            case MOIS_1_1 -> 4;
         };
+        int blocEntreprise = switch (rythme) {
+            case SEMAINE_1_1, AUTRE -> 1;
+            case SEMAINE_2_2 -> 2;
+            case SEMAINE_3_1 -> 3;
+            case MOIS_1_1 -> 4;
+        };
+
+        int cycle = blocEcole + blocEntreprise;
+        int position = weekIndex % cycle;
+
+        // Le bloc qui ouvre le cycle dépend de l'ordre choisi par l'alternant
+        int longueurPremierBloc = ordre == PremiereSemaine.ECOLE ? blocEcole : blocEntreprise;
+        String labelPremierBloc = ordre == PremiereSemaine.ECOLE ? "A" : "B";
+        String labelSecondBloc = ordre == PremiereSemaine.ECOLE ? "B" : "A";
+
+        return position < longueurPremierBloc ? labelPremierBloc : labelSecondBloc;
     }
 
     // Vérifie si un jour férié tombe dans la semaine (lundi au vendredi).

@@ -31,7 +31,7 @@ public class AccordExpirationJob {
     @Transactional
     public void expireOldPendingAccords() {
         OffsetDateTime limite = OffsetDateTime.now().minusHours(72);
-        int nbExpires = accordRepository.expireAccordsEnAttente(limite, AccordStatut.ANNULE);
+        int nbExpires = accordRepository.expireAccordsEnAttente(limite, AccordStatut.ANNULE.name());
         if (nbExpires > 0) {
             log.info("AccordExpirationJob : {} accord(s) expiré(s)", nbExpires);
         }

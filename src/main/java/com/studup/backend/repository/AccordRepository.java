@@ -1,7 +1,6 @@
 package com.studup.backend.repository;
 
 import com.studup.backend.model.entity.Accord;
-import com.studup.backend.model.enums.AccordStatut;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -33,17 +32,22 @@ public interface AccordRepository extends JpaRepository<Accord, UUID> {
     /**
      * Expire tous les accords EN_ATTENTE créés avant la limite de temps donnée.
      * Retourne le nombre d'accords modifiés.
+     *
+     * Requête NATIVE avec CAST explicite : le @ColumnTransformer de l'entité
+     * ne s'applique pas aux UPDATE en masse JPQL, donc Hibernate enverrait le
+     * statut comme varchar et PostgreSQL (colonne de type enum accord_statut)
+     * rejetterait la requête. Le CAST garantit le bon type (corrigé APP-115).
      */
     @Modifying
-    @Query("""
-            UPDATE Accord a
-            SET a.statut = :nouveauStatut, a.updatedAt = CURRENT_TIMESTAMP
-            WHERE a.statut = 'EN_ATTENTE'
-            AND a.createdAt < :limite
-            """)
+    @Query(value = """
+            UPDATE accords
+            SET statut = CAST(:nouveauStatut AS accord_statut), updated_at = NOW()
+            WHERE statut = 'EN_ATTENTE'
+            AND created_at < :limite
+            """, nativeQuery = true)
     int expireAccordsEnAttente(
             @Param("limite") OffsetDateTime limite,
-            @Param("nouveauStatut") AccordStatut nouveauStatut
+            @Param("nouveauStatut") String nouveauStatut
     );
 
     // Prochains accords actifs/acceptés sur les 8 semaines à venir

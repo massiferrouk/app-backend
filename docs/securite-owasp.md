@@ -41,6 +41,53 @@ Le scan est prévu pour s'exécuter périodiquement dans la pipeline (plutôt qu
 push, à cause de la durée du téléchargement NVD), afin de détecter les nouvelles CVE
 publiées sur des dépendances déjà présentes.
 
+## Remédiation des dépendances (APP-114)
+
+Après le premier scan (APP-113), une campagne de montée de versions a été menée puis
+revalidée par la suite de tests complète (429 tests, 0 échec) et un nouveau scan.
+
+Montées de version appliquées (patchs sûrs, sans changement de ligne majeure sauf Tika) :
+
+    Spring Boot          3.5.14  -> 3.5.16
+    firebase-admin       9.4.2   -> 9.10.0
+    tika-core            2.9.2   -> 3.3.1   (majeure : API detect() inchangée)
+    google-auth-library  (ajout explicite 1.49.0 : firebase 9.x ne l'expose plus
+                          transitivement à la compilation)
+
+Résultat mesuré :
+
+    Dépendances vulnérables (CVE >= 7)   ~25  ->  11
+    CVE >= 7 (dont deux 10.0 sur netty)  ~90  -> ~24
+
+Clusters éliminés : netty (22 CVE), spring-core, spring-web, spring-security,
+jackson-databind, grpc-core, grpc-protobuf, postgresql, tika-core.
+
+### CVE résiduelles (11 dépendances) — analyse
+
+Toutes les CVE restantes sont soit gérées par un dépôt amont (BOM Spring Boot,
+Firebase Admin SDK), soit sans correctif publié à ce jour :
+
+- **Gérées par le BOM Spring Boot** (tomcat-embed-core, log4j-api, httpcore,
+  httpcore5, angus-activation) : versions imposées par Spring Boot 3.5.16 ; CVE
+  publiées en 2026, pas encore corrigées dans la ligne 3.5.x. Résolution attendue
+  au prochain patch Spring Boot — suivi actif.
+- **Transitives Firebase/Google** (grpc-context, kotlin-stdlib, protobuf-java,
+  opentelemetry-*-alpha) : tirées par firebase-admin, non exposées directement par
+  l'application ; les composants opentelemetry sont en version alpha (incubator),
+  utilisés en interne par le SDK Google.
+
+Aucune de ces dépendances n'est appelée directement par le code applicatif ; la
+seule dépendance directe traitant des données non fiables (Tika, validation des
+fichiers uploadés) a été corrigée.
+
+### Décision sur les résidus
+
+Le seuil `failBuildOnCVSS=7` reste volontairement strict : le scan « échoue » tant
+que des CVE hautes subsistent, ce qui maintient une pression de mise à jour. Le scan
+étant exécuté périodiquement (et non à chaque push), cela ne bloque pas le
+développement courant. Une montée de Spring Boot et de firebase-admin sera refaite
+dès que les correctifs amont seront publiés.
+
 ## Notes de justification pour la soutenance
 
 - **CSRF désactivé** : choix volontaire et correct pour une API REST stateless

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirme ton inscription StudUp</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; padding: 32px; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header h1 { color: #1A1A1A; font-size: 24px; margin: 0; }
+        p { color: #1A1A1A; font-size: 15px; line-height: 1.5; }
+        .cta { text-align: center; margin: 32px 0; }
+        .cta a { background: #27AE60; color: white; padding: 14px 36px;
+                 border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; }
+        .hint { color: #757575; font-size: 13px; word-break: break-all; }
+        .footer { color: #757575; font-size: 12px; text-align: center; margin-top: 32px;
+                  border-top: 1px solid #F0F0F0; padding-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bienvenue sur StudUp 👋</h1>
+        </div>
+        <p>Bonjour <span th:text="${prenom}">Alternant</span>,</p>
+        <p>Merci de t'être inscrit sur StudUp. Pour activer ton compte et commencer à
+           trouver des échanges de logement, confirme ton adresse email :</p>
+        <div class="cta">
+            <a th:href="${lien}" href="#">Confirmer mon adresse email</a>
+        </div>
+        <p class="hint">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br>
+           <span th:text="${lien}">https://…</span></p>
+        <p class="hint">Ce lien est valable 24 heures. Si tu n'es pas à l'origine de cette
+           inscription, ignore simplement cet email.</p>
+        <div class="footer">
+            StudUp — plateforme de logement pour alternants
+        </div>
+    </div>
+</body>
+</html>

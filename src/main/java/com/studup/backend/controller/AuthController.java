@@ -9,6 +9,7 @@ import com.studup.backend.service.AuthService;
 import com.studup.backend.service.EmailConfirmationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,11 +35,43 @@ public class AuthController {
     }
 
     // POST /api/v1/auth/confirm?token=... → 200 (APP-82)
-    // Valide le token reçu par email et active le compte
+    // Utilisé par l'app mobile (réponse JSON)
     @PostMapping("/confirm")
     public ResponseEntity<Map<String, String>> confirm(@RequestParam String token) {
         emailConfirmationService.confirmToken(token);
         return ResponseEntity.ok(Map.of("message", "Email confirmé, tu peux te connecter"));
+    }
+
+    // GET /api/v1/auth/confirm?token=... → page HTML (APP-116)
+    // C'est CE lien qui est mis dans l'email : un clic = une requête GET.
+    // Renvoie une page de succès (ou d'erreur) lisible directement dans le navigateur.
+    @GetMapping(value = "/confirm", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> confirmViaLink(@RequestParam String token) {
+        try {
+            emailConfirmationService.confirmToken(token);
+            return ResponseEntity.ok(htmlPage(
+                    "#27AE60", "Email confirmé ✓",
+                    "Ton compte StudUp est activé. Tu peux maintenant te connecter dans l'application."));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(htmlPage(
+                    "#E74C3C", "Lien invalide",
+                    e.getMessage()));
+        }
+    }
+
+    // Petite page HTML autonome (pas de template : réponse directe au clic email)
+    private String htmlPage(String couleur, String titre, String message) {
+        return """
+                <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>StudUp</title></head>
+                <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:0;">
+                <div style="max-width:480px;margin:64px auto;background:#fff;border-radius:8px;
+                            padding:40px;text-align:center;">
+                  <h1 style="color:%s;font-size:22px;">%s</h1>
+                  <p style="color:#1A1A1A;font-size:15px;line-height:1.5;">%s</p>
+                </div></body></html>
+                """.formatted(couleur, titre, message);
     }
 
     // POST /api/v1/auth/login → 200 + AuthResponse (accessToken + refreshToken)

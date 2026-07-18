@@ -1,6 +1,7 @@
 package com.studup.backend.service;
 
 import com.studup.backend.exception.InvalidTokenException;
+import com.studup.backend.model.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,10 +27,36 @@ class EmailConfirmationServiceTest {
     @Mock
     private JdbcTemplate jdbcTemplate;
 
+    @Mock
+    private EmailService emailService;
+
     @InjectMocks
     private EmailConfirmationService service;
 
     private final UUID userId = UUID.randomUUID();
+
+    // ─── Envoi de l'email de confirmation (APP-116) ──────────────────────────
+
+    @Test
+    void shouldPersistTokenAndSendConfirmationEmail() {
+        User user = User.builder()
+                .id(userId)
+                .email("alice@studup.fr")
+                .firstName("Alice")
+                .build();
+
+        service.sendConfirmationEmail(user);
+
+        // Un token est inséré en base…
+        verify(jdbcTemplate).update(contains("INSERT INTO email_confirmation_tokens"),
+                eq(userId), anyString(), any());
+        // …et l'email réel est envoyé via le bon template, à la bonne adresse
+        verify(emailService).sendHtml(
+                eq("alice@studup.fr"),
+                anyString(),
+                eq("email-confirmation"),
+                any());
+    }
 
     /// Simule un SELECT qui ne trouve aucun token
     @SuppressWarnings("unchecked")

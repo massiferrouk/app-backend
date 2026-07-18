@@ -300,6 +300,43 @@
 				</plugins>
 			</build>
 		</profile>
+
+		<profile>
+			<!--
+			  Scan des dépendances vulnérables — OWASP Top 10 A06 (APP-113).
+			  Lancement : mvn verify -Psecurity
+			  Le plugin croise chaque dépendance avec la base NVD (CVE) et
+			  produit target/dependency-check-report.html.
+			  failBuildOnCVSS=7 : échec si une faille haute (CVSS >= 7) existe.
+			  NB : le premier scan télécharge la base NVD (long). Une clé API
+			  NVD accélère fortement — à passer en variable d'environnement
+			  dans la CI, jamais en dur dans le pom.
+			-->
+			<id>security</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.owasp</groupId>
+						<artifactId>dependency-check-maven</artifactId>
+						<version>10.0.4</version>
+						<configuration>
+							<failBuildOnCVSS>7</failBuildOnCVSS>
+							<formats>
+								<format>HTML</format>
+								<format>JSON</format>
+							</formats>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>check</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 	</profiles>
 
 </project>

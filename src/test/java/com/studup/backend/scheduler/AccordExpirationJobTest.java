@@ -28,13 +28,13 @@ class AccordExpirationJobTest {
 
     @Test
     void shouldExpireOldPendingAccords() {
-        when(accordRepository.expireAccordsEnAttente(any(), eq(AccordStatut.ANNULE)))
+        when(accordRepository.expireAccordsEnAttente(any(), eq(AccordStatut.ANNULE.name())))
                 .thenReturn(3);
 
         job.expireOldPendingAccords();
 
         // Vérifie que le repository est appelé avec le statut ANNULE
-        verify(accordRepository).expireAccordsEnAttente(any(OffsetDateTime.class), eq(AccordStatut.ANNULE));
+        verify(accordRepository).expireAccordsEnAttente(any(OffsetDateTime.class), eq(AccordStatut.ANNULE.name()));
     }
 
     // ─── shouldHandleZeroExpiredAccords ───────────────────────────────────────
@@ -47,6 +47,6 @@ class AccordExpirationJobTest {
         // Aucune exception si aucun accord à expirer
         job.expireOldPendingAccords();
 
-        verify(accordRepository).expireAccordsEnAttente(any(OffsetDateTime.class), eq(AccordStatut.ANNULE));
+        verify(accordRepository).expireAccordsEnAttente(any(OffsetDateTime.class), eq(AccordStatut.ANNULE.name()));
     }
 }

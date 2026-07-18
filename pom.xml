@@ -10,9 +10,9 @@
 	</parent>
 	<groupId>com.yuniv</groupId>
 	<artifactId>backend</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<version>1.0.0</version>
+	<name>StudUp API</name>
+	<description>API de la plateforme de logement pour alternants StudUp</description>
 	<url/>
 	<licenses>
 		<license/>

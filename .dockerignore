@@ -1,0 +1,11 @@
+# Fichiers inutiles a la construction de l'image (APP-115)
+target/
+*.log
+mvn_full*.log
+.git/
+.github/
+.idea/
+docs/
+HELP.md
+README.md
+*.md

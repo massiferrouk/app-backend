@@ -489,13 +489,14 @@ class LogementServiceTest {
         // Le logement de référence est à Paris avec loyer 800€
         fakeLogement.setStatut(LogementStatut.ACTIF);
 
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(fakeLogement)));
 
         LogementSearchRequest request = new LogementSearchRequest(
                 "Paris", new BigDecimal("900"), null, null, null, null, 0);
 
-        PageResponse<LogementResponse> result = logementService.search(request);
+        PageResponse<LogementResponse> result = logementService.search(request, "pierre@studup.fr");
 
         assertThat(result.content()).hasSize(1);
         assertThat(result.content().get(0).ville()).isEqualTo("Paris");
@@ -504,13 +505,14 @@ class LogementServiceTest {
 
     @Test
     void shouldReturnEmptyPageWhenNoResults() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         LogementSearchRequest request = new LogementSearchRequest(
                 "Marseille", null, null, null, null, null, 0);
 
-        PageResponse<LogementResponse> result = logementService.search(request);
+        PageResponse<LogementResponse> result = logementService.search(request, "pierre@studup.fr");
 
         assertThat(result.content()).isEmpty();
         assertThat(result.totalElements()).isEqualTo(0);
@@ -521,6 +523,7 @@ class LogementServiceTest {
     void shouldSearchWithNoFilters() {
         fakeLogement.setStatut(LogementStatut.ACTIF);
 
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(fakeLogement)));
 
@@ -528,21 +531,50 @@ class LogementServiceTest {
         LogementSearchRequest request = new LogementSearchRequest(
                 null, null, null, null, null, null, 0);
 
-        PageResponse<LogementResponse> result = logementService.search(request);
+        PageResponse<LogementResponse> result = logementService.search(request, "pierre@studup.fr");
 
         assertThat(result.content()).hasSize(1);
     }
 
     @Test
     void shouldRespectPageNumber() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         LogementSearchRequest request = new LogementSearchRequest(
                 null, null, null, null, null, null, 2);
 
-        PageResponse<LogementResponse> result = logementService.search(request);
+        PageResponse<LogementResponse> result = logementService.search(request, "pierre@studup.fr");
 
         assertThat(result.page()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldResolveConnectedUserToExcludeOwnLogements() {
+        // APP-117 (A-03) : la recherche doit identifier l'utilisateur connecté pour
+        // pouvoir exclure ses propres logements (filtre proprietaireDifferent).
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        LogementSearchRequest request = new LogementSearchRequest(
+                null, null, null, null, null, null, 0);
+
+        logementService.search(request, "pierre@studup.fr");
+
+        // L'utilisateur connecté est bien résolu (base du filtre d'exclusion)
+        verify(userRepository).findByEmail("pierre@studup.fr");
+    }
+
+    @Test
+    void shouldRejectSearchWhenUserNotFound() {
+        when(userRepository.findByEmail("inconnu@studup.fr")).thenReturn(Optional.empty());
+
+        LogementSearchRequest request = new LogementSearchRequest(
+                null, null, null, null, null, null, 0);
+
+        assertThatThrownBy(() -> logementService.search(request, "inconnu@studup.fr"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }

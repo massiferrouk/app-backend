@@ -6,6 +6,7 @@ import com.studup.backend.model.enums.LogementType;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 /**
  * Filtres dynamiques pour la recherche de logements.
@@ -40,5 +41,11 @@ public class LogementSpecification {
 
     public static Specification<Logement> typeEgal(LogementType type) {
         return (root, query, cb) -> cb.equal(root.get("type"), type);
+    }
+
+    // On n'affiche jamais à l'utilisateur ses propres logements dans la
+    // recherche : il ne peut pas se contacter lui-même (APP-117 · A-03).
+    public static Specification<Logement> proprietaireDifferent(UUID ownerId) {
+        return (root, query, cb) -> cb.notEqual(root.get("owner").get("id"), ownerId);
     }
 }

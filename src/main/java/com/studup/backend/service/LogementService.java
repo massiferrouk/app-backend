@@ -385,9 +385,14 @@ public class LogementService {
 
     // ─── Recherche ────────────────────────────────────────────────────────────
 
-    public PageResponse<LogementResponse> search(LogementSearchRequest request) {
-        // On commence toujours par filtrer les logements ACTIF uniquement
-        Specification<Logement> spec = LogementSpecification.estActif();
+    public PageResponse<LogementResponse> search(LogementSearchRequest request, String email) {
+        User currentUser = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        // On commence toujours par filtrer les logements ACTIF uniquement,
+        // en excluant ceux de l'utilisateur connecté (APP-117 · A-03)
+        Specification<Logement> spec = LogementSpecification.estActif()
+                .and(LogementSpecification.proprietaireDifferent(currentUser.getId()));
 
         // On ajoute les filtres optionnels un par un — ceux qui sont null sont ignorés
         if (request.ville() != null && !request.ville().isBlank()) {

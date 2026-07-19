@@ -38,10 +38,11 @@ public class LogementController {
             @RequestParam(required = false) Boolean meuble,
             @RequestParam(required = false) LogementType type,
             @RequestParam(required = false) String tri,
-            @RequestParam(defaultValue = "0") Integer page) {
+            @RequestParam(defaultValue = "0") Integer page,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
         LogementSearchRequest request = new LogementSearchRequest(ville, loyerMax, surfaceMin, meuble, type, tri, page);
-        return ResponseEntity.ok(logementService.search(request));
+        return ResponseEntity.ok(logementService.search(request, userDetails.getUsername()));
     }
 
     // Tous les logements de l'utilisateur connecté, brouillons inclus (APP-70)

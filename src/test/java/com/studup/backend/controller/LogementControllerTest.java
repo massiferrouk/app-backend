@@ -97,7 +97,7 @@ class LogementControllerTest {
         PageResponse<LogementResponse> fakePage = new PageResponse<>(
                 List.of(fakeResponse()), 0, 20, 1L, false);
 
-        when(logementService.search(any())).thenReturn(fakePage);
+        when(logementService.search(any(), any())).thenReturn(fakePage);
 
         mockMvc.perform(get("/api/v1/logements")
                         .param("ville", "Paris")
@@ -115,7 +115,7 @@ class LogementControllerTest {
         PageResponse<LogementResponse> emptyPage = new PageResponse<>(
                 List.of(), 0, 20, 0L, false);
 
-        when(logementService.search(any())).thenReturn(emptyPage);
+        when(logementService.search(any(), any())).thenReturn(emptyPage);
 
         mockMvc.perform(get("/api/v1/logements")
                         .param("ville", "Inconnu"))

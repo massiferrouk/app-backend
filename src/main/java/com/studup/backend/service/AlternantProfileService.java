@@ -133,8 +133,14 @@ public class AlternantProfileService {
 
         profile = profileRepository.save(profile);
 
-        // Recalcul complet du calendrier après modification du profil
+        // Recalcul complet du calendrier après modification du profil.
+        // APP-117 (A-05) : on force un flush entre la suppression et la réinsertion.
+        // Le rythme change mais les dates restent identiques → les nouvelles semaines
+        // réutilisent les mêmes couples (profile_id, semaine). Sans ce flush, Hibernate
+        // ordonne les INSERT avant les DELETE au moment du commit et viole la contrainte
+        // unique uq_alternance_schedule (500). Le flush exécute le DELETE en base d'abord.
         scheduleRepository.deleteByProfileId(profile.getId());
+        scheduleRepository.flush();
         List<AlternanceSchedule> schedule = buildAndSaveSchedule(profile);
 
         // Les villes/rythme ont pu changer → recalcule et notifie les matchs (APP-98)

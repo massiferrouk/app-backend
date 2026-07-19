@@ -30,21 +30,25 @@ class LogementSearchIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void shouldReturnPublishedLogementsInSearch() {
-        String token = registerConfirmedProprietaire(
-                "search_" + UUID.randomUUID() + "@studup.fr");
+        String ownerToken = registerConfirmedProprietaire(
+                "owner_" + UUID.randomUUID() + "@studup.fr");
+        // APP-117 (A-04) : la recherche exclut les logements de l'utilisateur
+        // connecté → on cherche avec un SECOND compte, distinct du propriétaire.
+        String searcherToken = registerConfirmedProprietaire(
+                "searcher_" + UUID.randomUUID() + "@studup.fr");
 
         // Ville unique pour isoler ce test des autres données
         String ville = "TestVille" + Integer.toHexString((int) (Math.random() * 100000));
 
         // 2 logements publiés (ACTIF) + 1 laissé en BROUILLON
-        publishLogement(token, ville);
-        publishLogement(token, ville);
-        createLogement(token, ville); // reste BROUILLON, ne doit PAS ressortir
+        publishLogement(ownerToken, ville);
+        publishLogement(ownerToken, ville);
+        createLogement(ownerToken, ville); // reste BROUILLON, ne doit PAS ressortir
 
         // Recherche par ville → seuls les 2 ACTIF (le chemin qui plantait en 500)
         ResponseEntity<Map> byVille = restTemplate.exchange(
                 "/api/v1/logements?ville=" + ville,
-                HttpMethod.GET, new HttpEntity<>(authHeaders(token)), Map.class);
+                HttpMethod.GET, new HttpEntity<>(authHeaders(searcherToken)), Map.class);
 
         assertThat(byVille.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat((List<?>) byVille.getBody().get("content")).hasSize(2);
@@ -52,10 +56,19 @@ class LogementSearchIntegrationTest extends AbstractIntegrationTest {
         // Recherche avec filtre type (ENUM natif aussi) → toujours 2
         ResponseEntity<Map> byType = restTemplate.exchange(
                 "/api/v1/logements?ville=" + ville + "&type=STUDIO",
-                HttpMethod.GET, new HttpEntity<>(authHeaders(token)), Map.class);
+                HttpMethod.GET, new HttpEntity<>(authHeaders(searcherToken)), Map.class);
 
         assertThat(byType.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat((List<?>) byType.getBody().get("content")).hasSize(2);
+
+        // APP-117 (A-04) : le propriétaire ne voit JAMAIS ses propres logements
+        // dans la recherche — il ne peut pas se contacter lui-même.
+        ResponseEntity<Map> byOwner = restTemplate.exchange(
+                "/api/v1/logements?ville=" + ville,
+                HttpMethod.GET, new HttpEntity<>(authHeaders(ownerToken)), Map.class);
+
+        assertThat(byOwner.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat((List<?>) byOwner.getBody().get("content")).isEmpty();
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

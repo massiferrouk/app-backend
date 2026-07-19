@@ -31,7 +31,9 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -166,6 +168,27 @@ class AuthControllerTest {
         // Pas de paramètre token → 400 automatique de Spring
         mockMvc.perform(post("/api/v1/auth/confirm"))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ─── Confirmation via lien email : GET renvoie une page HTML (APP-116) ────
+
+    @Test
+    void shouldReturnHtmlSuccessPageOnValidGetConfirm() throws Exception {
+        // Le service ne lève rien → page de succès HTML
+        mockMvc.perform(get("/api/v1/auth/confirm").param("token", "token-valide"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Email confirmé")));
+    }
+
+    @Test
+    void shouldReturnHtmlErrorPageOnInvalidGetConfirm() throws Exception {
+        org.mockito.Mockito.doThrow(new InvalidTokenException("Lien de confirmation invalide"))
+                .when(emailConfirmationService).confirmToken("token-bidon");
+
+        mockMvc.perform(get("/api/v1/auth/confirm").param("token", "token-bidon"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Lien invalide")));
     }
 
     // ─── Tests connexion ──────────────────────────────────────────────────────

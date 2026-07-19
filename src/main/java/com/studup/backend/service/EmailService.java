@@ -1,6 +1,5 @@
 package com.studup.backend.service;
 
-import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +46,12 @@ public class EmailService {
 
             mailSender.send(message);
             log.info("Email envoyé à {} — sujet : {}", to, subject);
-        } catch (MessagingException e) {
+        } catch (Exception e) {
+            // Best-effort : un échec d'envoi (SMTP injoignable, auth invalide,
+            // template en erreur…) ne doit JAMAIS casser le flux appelant
+            // (ex. l'inscription). On journalise et on continue. mailSender.send()
+            // lève une MailException RUNTIME, non couverte par MessagingException
+            // seule — d'où le catch large (corrigé APP-116).
             log.error("Échec envoi email à {} : {}", to, e.getMessage());
         }
     }

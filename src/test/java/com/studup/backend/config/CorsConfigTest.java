@@ -10,6 +10,7 @@ import com.studup.backend.service.GeocodingService;
 import com.studup.backend.service.LogementService;
 import com.studup.backend.service.AccordService;
 import com.studup.backend.service.CandidatureService;
+import com.studup.backend.service.UserService;
 import com.studup.backend.service.MessageService;
 import com.studup.backend.service.NotificationService;
 import com.studup.backend.service.AlternantDashboardService;
@@ -91,6 +92,10 @@ class CorsConfigTest {
     // Exigé par CandidatureController (APP-117) — @WebMvcTest large
     @MockitoBean
     private CandidatureService candidatureService;
+
+    // Exigé par UserController depuis le changement de mode (APP-117)
+    @MockitoBean
+    private UserService userService;
 
     @MockitoBean
     private MessageService messageService;

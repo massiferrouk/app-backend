@@ -301,8 +301,7 @@ class LogementServiceTest {
 
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
-        when(accordRepository.existsByLogementAIdOrLogementBId(
-                fakeLogement.getId(), fakeLogement.getId())).thenReturn(false);
+        when(accordRepository.existsLivingAccordForLogement(fakeLogement.getId())).thenReturn(false);
         when(geocodingService.geocode(any(), any(), any())).thenReturn(null);
         when(photoRepository.findByLogementIdOrderByOrdreAsc(fakeLogement.getId()))
                 .thenReturn(List.of());
@@ -315,8 +314,9 @@ class LogementServiceTest {
         assertThat(response.loyer()).isEqualByComparingTo("750.0");
     }
 
+    // APP-117 (A-06) : seul un accord VIVANT bloque la modification.
     @Test
-    void shouldRejectUpdateWhenLinkedToAccord() {
+    void shouldRejectUpdateWhenLinkedToLivingAccord() {
         CreateLogementRequest request = new CreateLogementRequest(
                 "2 avenue Neuve", "Lyon", "69002", LogementType.T2,
                 new BigDecimal("40.0"), 2, new BigDecimal("750.0"),
@@ -324,8 +324,7 @@ class LogementServiceTest {
 
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
-        when(accordRepository.existsByLogementAIdOrLogementBId(
-                fakeLogement.getId(), fakeLogement.getId())).thenReturn(true);
+        when(accordRepository.existsLivingAccordForLogement(fakeLogement.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> logementService.updateLogement(
                 "pierre@studup.fr", fakeLogement.getId(), request))
@@ -337,10 +336,12 @@ class LogementServiceTest {
 
     // ─── Suppression ──────────────────────────────────────────────────────────
 
+    // Aucun accord n'a jamais engagé le logement → suppression physique réelle.
     @Test
     void shouldDeleteOwnLogement() {
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsLivingAccordForLogement(fakeLogement.getId())).thenReturn(false);
         when(accordRepository.existsByLogementAIdOrLogementBId(
                 fakeLogement.getId(), fakeLogement.getId())).thenReturn(false);
         when(photoRepository.findFileKeysByLogementId(fakeLogement.getId()))
@@ -351,18 +352,35 @@ class LogementServiceTest {
         verify(logementRepository).deleteById(fakeLogement.getId());
     }
 
+    // APP-117 (A-06) : accord VIVANT → suppression interdite (409).
     @Test
-    void shouldRejectDeleteWhenLinkedToAccord() {
+    void shouldRejectDeleteWhenLinkedToLivingAccord() {
         when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
         when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
-        when(accordRepository.existsByLogementAIdOrLogementBId(
-                fakeLogement.getId(), fakeLogement.getId())).thenReturn(true);
+        when(accordRepository.existsLivingAccordForLogement(fakeLogement.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> logementService.deleteLogement(
                 "pierre@studup.fr", fakeLogement.getId()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("accord");
 
+        verify(logementRepository, never()).deleteById(any());
+    }
+
+    // APP-117 (A-06) : historique d'accords MORTS → pas de hard delete (FK), on archive.
+    @Test
+    void shouldArchiveLogementWhenLinkedToDeadAccordOnly() {
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(accordRepository.existsLivingAccordForLogement(fakeLogement.getId())).thenReturn(false);
+        when(accordRepository.existsByLogementAIdOrLogementBId(
+                fakeLogement.getId(), fakeLogement.getId())).thenReturn(true);
+
+        logementService.deleteLogement("pierre@studup.fr", fakeLogement.getId());
+
+        // Suppression logique : le statut passe à ARCHIVE, aucune suppression physique.
+        assertThat(fakeLogement.getStatut()).isEqualTo(LogementStatut.ARCHIVE);
+        verify(logementRepository).save(fakeLogement);
         verify(logementRepository, never()).deleteById(any());
     }
 
@@ -412,6 +430,21 @@ class LogementServiceTest {
                 new AssocierVilleRequest(VilleAssociee.VILLE_A));
 
         assertThat(response.villeAssociee()).isEqualTo(VilleAssociee.VILLE_A);
+    }
+
+    // APP-117 (A-08) : on ne peut pas associer la ville du logement d'un autre (IDOR).
+    @Test
+    void shouldRejectAssocierVilleByNonOwner() {
+        User autre = User.builder().id(UUID.randomUUID()).email("autre@studup.fr").build();
+        when(userRepository.findByEmail("autre@studup.fr")).thenReturn(Optional.of(autre));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+
+        assertThatThrownBy(() -> logementService.associerVille(
+                "autre@studup.fr", fakeLogement.getId(),
+                new AssocierVilleRequest(VilleAssociee.VILLE_A)))
+                .isInstanceOf(UnauthorizedException.class);
+
+        verify(logementRepository, never()).save(any());
     }
 
     @Test

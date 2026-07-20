@@ -17,6 +17,7 @@ import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.AccordType;
 import com.studup.backend.model.enums.LogementStatut;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
@@ -69,6 +70,13 @@ public class MatchingService {
                         .getId()
         ).orElseThrow(() -> new ResourceNotFoundException(
                 "Profil alternant introuvable — créez votre profil avant de consulter les suggestions"));
+
+        // APP-117 : un utilisateur « en pause » (repassé en mode étudiant) ne
+        // participe plus au matching — aucune suggestion tant qu'il n'est pas
+        // revenu en mode alternant. Son profil est conservé, juste inactif.
+        if (myProfile.getUser().getRole() != UserRole.ALTERNANT) {
+            return List.of();
+        }
 
         // Présélection : uniquement les profils qui partagent au moins une ville
         List<AlternantProfile> candidates = profileRepository.findCandidatesWithSharedCity(

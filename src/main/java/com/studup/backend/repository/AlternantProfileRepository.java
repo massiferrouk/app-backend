@@ -21,9 +21,14 @@ public interface AlternantProfileRepository extends JpaRepository<AlternantProfi
     // Exclut le profil de l'utilisateur connecté lui-même.
     // APP-92 : comparaison insensible à la casse (LOWER des deux côtés) — cohérent
     // avec le CompatibilityCalculator qui utilise equalsIgnoreCase.
+    // APP-117 : on exclut les profils « en pause » (utilisateur repassé en mode
+    // étudiant) — seuls les comptes en mode ALTERNANT participent au matching.
+    // Littéral 'ALTERNANT' et pas un paramètre bindé : le rôle est un enum natif
+    // PostgreSQL (user_role), une comparaison avec un varchar bindé échouerait.
     @Query("""
             SELECT p FROM AlternantProfile p
             WHERE p.id != :excludeProfileId
+            AND p.user.role = 'ALTERNANT'
             AND (
                 LOWER(p.villeA) IN (LOWER(:villeA), LOWER(:villeB))
                 OR LOWER(p.villeB) IN (LOWER(:villeA), LOWER(:villeB))

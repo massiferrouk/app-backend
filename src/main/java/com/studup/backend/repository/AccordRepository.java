@@ -30,6 +30,21 @@ public interface AccordRepository extends JpaRepository<Accord, UUID> {
     boolean existsByLogementAIdOrLogementBId(UUID logementAId, UUID logementBId);
 
     /**
+     * Existe-t-il un accord VIVANT lié à ce logement ? (APP-117 · A-06)
+     *
+     * Un accord vivant = une négociation ou un contrat en cours :
+     * EN_ATTENTE, ACCEPTE, EN_COURS, LITIGE. Les accords morts
+     * (REFUSE, ANNULE, TERMINE) ne verrouillent plus le logement :
+     * l'utilisateur peut de nouveau le modifier / le ré-associer.
+     */
+    @Query("""
+            SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM Accord a
+            WHERE (a.logementAId = :logementId OR a.logementBId = :logementId)
+            AND a.statut IN ('EN_ATTENTE', 'ACCEPTE', 'EN_COURS', 'LITIGE')
+            """)
+    boolean existsLivingAccordForLogement(@Param("logementId") UUID logementId);
+
+    /**
      * Expire tous les accords EN_ATTENTE créés avant la limite de temps donnée.
      * Retourne le nombre d'accords modifiés.
      *

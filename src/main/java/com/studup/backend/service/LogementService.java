@@ -121,9 +121,11 @@ public class LogementService {
             throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
         }
 
-        if (accordRepository.existsByLogementAIdOrLogementBId(logementId, logementId)) {
+        // APP-117 (A-06) : on ne bloque que si un accord VIVANT engage le logement.
+        // Un accord refusé/annulé/terminé le re-libère à la modification.
+        if (accordRepository.existsLivingAccordForLogement(logementId)) {
             throw new IllegalStateException(
-                    "Ce logement est lié à un accord et ne peut plus être modifié.");
+                    "Ce logement est engagé dans un accord en cours et ne peut pas être modifié.");
         }
 
         logement.setAdresse(request.adresse());
@@ -236,12 +238,25 @@ public class LogementService {
             throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
         }
 
-        // Un logement engagé dans un accord ne peut pas être supprimé (FK + métier)
-        if (accordRepository.existsByLogementAIdOrLogementBId(logementId, logementId)) {
+        // APP-117 (A-06) : accord VIVANT → suppression interdite (négociation ou contrat
+        // en cours). L'utilisateur doit d'abord annuler/refuser l'accord.
+        if (accordRepository.existsLivingAccordForLogement(logementId)) {
             throw new IllegalStateException(
-                    "Ce logement est lié à un accord et ne peut pas être supprimé.");
+                    "Ce logement est engagé dans un accord en cours et ne peut pas être supprimé.");
         }
 
+        // APP-117 (A-06) : le logement a un historique d'accords MORTS. Les FK des accords
+        // sont en RESTRICT et gardent une référence vers lui pour l'audit → on ne peut pas
+        // l'effacer physiquement sans orpheliner un accord passé. On le passe donc en
+        // ARCHIVE (suppression logique) : il disparaît des listes et des recherches mais
+        // la trace de l'historique reste intacte. Les photos sont conservées.
+        if (accordRepository.existsByLogementAIdOrLogementBId(logementId, logementId)) {
+            logement.setStatut(LogementStatut.ARCHIVE);
+            logementRepository.save(logement);
+            return;
+        }
+
+        // Aucun accord n'a jamais engagé ce logement → suppression physique réelle.
         // On récupère uniquement les clés MinIO (projection String, pas d'entités
         // managées) AVANT la suppression — charger les entités PhotoLogement puis
         // supprimer le logement (cascade DB) fait échouer le flush Hibernate.
@@ -269,7 +284,10 @@ public class LogementService {
         User owner = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
+        // APP-117 (A-06) : les logements archivés (supprimés logiquement car engagés dans
+        // un accord passé) ne doivent plus apparaître dans "Mes logements".
         return logementRepository.findByOwnerId(owner.getId()).stream()
+                .filter(l -> l.getStatut() != LogementStatut.ARCHIVE)
                 .map(l -> LogementResponse.from(l, getPhotoUrls(l.getId())))
                 .toList();
     }
@@ -291,10 +309,24 @@ public class LogementService {
         Logement logement = logementRepository.findById(logementId)
                 .orElseThrow(() -> new ResourceNotFoundException("Logement introuvable"));
 
+        // APP-117 (A-08) : sécurité — on ne modifie que SON propre logement.
+        // Sans ce contrôle, n'importe quel alternant authentifié pouvait réassocier
+        // la ville du logement d'un autre utilisateur (faille IDOR).
+        if (!logement.getOwner().getId().equals(owner.getId())) {
+            throw new UnauthorizedException("Vous n'êtes pas le propriétaire de ce logement");
+        }
+
         // Récupère le profil alternant pour vérifier les villes autorisées
         AlternantProfile profile = alternantProfileRepository.findByUserId(owner.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Profil alternant introuvable — créez votre profil avant d'associer un logement"));
+
+        // APP-117 (A-06) : ré-associer la ville d'un logement engagé dans un accord
+        // vivant changerait la base du matching en cours de négociation → interdit.
+        if (accordRepository.existsLivingAccordForLogement(logementId)) {
+            throw new IllegalStateException(
+                    "Ce logement est engagé dans un accord en cours : sa ville ne peut pas être réassociée.");
+        }
 
         // Vérifie que la ville du logement correspond à la ville demandée dans le profil
         String villeAttendue = request.villeAssociee() == VilleAssociee.VILLE_A
@@ -313,6 +345,7 @@ public class LogementService {
         // (operator does not exist). La lecture de la colonne, elle, fonctionne.
         boolean villeDejaOccupee = logementRepository.findByOwnerId(owner.getId()).stream()
                 .anyMatch(l -> !l.getId().equals(logementId)
+                        && l.getStatut() != LogementStatut.ARCHIVE
                         && request.villeAssociee().equals(l.getVilleAssociee()));
         if (villeDejaOccupee) {
             // IllegalStateException → 409 CONFLICT via le GlobalExceptionHandler

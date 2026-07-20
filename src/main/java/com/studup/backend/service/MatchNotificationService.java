@@ -7,6 +7,7 @@ import com.studup.backend.model.entity.AlternanceSchedule;
 import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.MatchNotification;
 import com.studup.backend.model.enums.NotificationType;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.MatchNotificationRepository;
@@ -76,6 +77,10 @@ public class MatchNotificationService {
     public void notifyNewMatches(UUID userId) {
         AlternantProfile me = profileRepository.findByUserId(userId).orElse(null);
         if (me == null) return;
+
+        // APP-117 : un utilisateur « en pause » (mode étudiant) ne génère pas de
+        // notification de match — symétrique du filtre de rôle sur les candidats.
+        if (me.getUser().getRole() != UserRole.ALTERNANT) return;
 
         List<AlternantProfile> candidates = profileRepository.findCandidatesWithSharedCity(
                 me.getId(), me.getVilleA(), me.getVilleB());

@@ -35,6 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -273,5 +275,32 @@ class MatchingServiceTest {
 
         assertThat(suggestions).hasSize(1);
         assertThat(suggestions.get(0).scorePercent()).isEqualTo(75);
+    }
+
+    // ─── APP-117 : utilisateur en pause (mode étudiant) ───────────────────────
+
+    @Test
+    void shouldReturnEmptyWhenUserIsPaused() {
+        User etu = User.builder()
+                .id(UUID.randomUUID()).email("massi@studup.fr")
+                .firstName("Massi").lastName("F")
+                .role(UserRole.ETUDIANT).isVerified(true).isActive(true)
+                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now())
+                .build();
+        AlternantProfile paused = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(etu)
+                .villeA("Paris").villeB("Lyon")
+                .rythme(RythmeAlternance.SEMAINE_3_1)
+                .build();
+        when(userRepository.findByEmail("massi@studup.fr")).thenReturn(Optional.of(etu));
+        when(profileRepository.findByUserId(etu.getId())).thenReturn(Optional.of(paused));
+
+        List<MatchingSuggestionResponse> suggestions =
+                matchingService.getSuggestions("massi@studup.fr");
+
+        // En pause : aucune suggestion, et on ne cherche même pas les candidats
+        assertThat(suggestions).isEmpty();
+        verify(profileRepository, never())
+                .findCandidatesWithSharedCity(any(), any(), any());
     }
 }

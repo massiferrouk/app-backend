@@ -6,6 +6,7 @@ import com.studup.backend.model.entity.AlternantProfile;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordType;
 import com.studup.backend.model.enums.NotificationType;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.MatchNotificationRepository;
@@ -46,7 +47,8 @@ class MatchNotificationServiceTest {
         meUserId = UUID.randomUUID();
         otherUserId = UUID.randomUUID();
 
-        User meUser = User.builder().id(meUserId).firstName("Alice").build();
+        User meUser = User.builder().id(meUserId).firstName("Alice")
+                .role(UserRole.ALTERNANT).build();
         User otherUser = User.builder().id(otherUserId).firstName("Bob").build();
 
         me = AlternantProfile.builder().id(UUID.randomUUID()).user(meUser)
@@ -109,5 +111,23 @@ class MatchNotificationServiceTest {
 
         verifyNoInteractions(notificationService);
         verify(matchNotificationRepository, never()).save(any());
+    }
+
+    // APP-117 : un utilisateur en pause (mode étudiant) ne génère aucune notif
+    // et on ne va même pas chercher les candidats.
+    @Test
+    void shouldNotNotifyWhenUserIsPaused() {
+        User etu = User.builder().id(meUserId).firstName("Alice")
+                .role(UserRole.ETUDIANT).build();
+        AlternantProfile paused = AlternantProfile.builder().id(UUID.randomUUID())
+                .user(etu).villeA("Paris").villeB("Lyon").build();
+        when(profileRepository.findByUserId(meUserId)).thenReturn(Optional.of(paused));
+
+        service.notifyNewMatches(meUserId);
+
+        verifyNoInteractions(notificationService);
+        verify(matchNotificationRepository, never()).save(any());
+        verify(profileRepository, never())
+                .findCandidatesWithSharedCity(any(), any(), any());
     }
 }

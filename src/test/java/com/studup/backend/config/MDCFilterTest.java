@@ -9,6 +9,7 @@ import com.studup.backend.service.DisponibiliteService;
 import com.studup.backend.service.GeocodingService;
 import com.studup.backend.service.LogementService;
 import com.studup.backend.service.AccordService;
+import com.studup.backend.service.CandidatureService;
 import com.studup.backend.service.MessageService;
 import com.studup.backend.service.NotificationService;
 import com.studup.backend.service.AlternantDashboardService;
@@ -87,6 +88,10 @@ class MDCFilterTest {
 
     @MockitoBean
     private AccordService accordService;
+
+    // Exigé par CandidatureController (APP-117) — @WebMvcTest large
+    @MockitoBean
+    private CandidatureService candidatureService;
 
     @MockitoBean
     private MessageService messageService;

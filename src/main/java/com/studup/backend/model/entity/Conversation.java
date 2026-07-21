@@ -27,6 +27,11 @@ public class Conversation {
     @Column(name = "accord_id")
     private UUID accordId;
 
+    // Annonce sur laquelle porte la discussion (APP-119).
+    // NULL = discussion de personne à personne (mise en relation alternant ↔ alternant).
+    @Column(name = "logement_id")
+    private UUID logementId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

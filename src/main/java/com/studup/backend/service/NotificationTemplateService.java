@@ -55,6 +55,14 @@ public class NotificationTemplateService {
                     "Rappel arrivée",
                     prenom + " arrive " + data.getOrDefault("date", "bientôt") + " dans votre logement"
             );
+            // Le propriétaire apprend qu'on s'intéresse à son annonce, sans
+            // jamais connaître le statut de suivi de l'étudiant (privé).
+            case ANNONCE_SUIVIE -> new NotificationTemplate(
+                    "Votre annonce intéresse",
+                    "Un étudiant a ajouté votre annonce à "
+                            + data.getOrDefault("ville", "sa ville")
+                            + " à ses favoris"
+            );
             case NOUVEAU_MATCH -> new NotificationTemplate(
                     "Nouveau match !",
                     prenom + " a un profil compatible avec le vôtre — découvrez votre échange possible"

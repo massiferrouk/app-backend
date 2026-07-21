@@ -8,8 +8,10 @@ import com.studup.backend.model.entity.ConversationParticipant;
 import com.studup.backend.model.entity.Message;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.UserRole;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.repository.ConversationParticipantRepository;
 import com.studup.backend.repository.ConversationRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.MessageRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +44,7 @@ class MessageServiceTest {
     @Mock private ConversationRepository conversationRepository;
     @Mock private ConversationParticipantRepository participantRepository;
     @Mock private UserRepository userRepository;
+    @Mock private LogementRepository logementRepository;
     @Mock private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
@@ -79,7 +82,7 @@ class MessageServiceTest {
     void shouldPersistMessageAndMarkAsUnread() {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
         when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
-        when(conversationRepository.findByParticipants(sender.getId(), receiver.getId()))
+        when(conversationRepository.findByParticipantsSansLogement(sender.getId(), receiver.getId()))
                 .thenReturn(Optional.of(conversation));
         when(messageRepository.save(any())).thenReturn(message);
         when(conversationRepository.save(any())).thenReturn(conversation);
@@ -98,7 +101,7 @@ class MessageServiceTest {
     void shouldBroadcastViaWebSocket() {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
         when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
-        when(conversationRepository.findByParticipants(any(), any()))
+        when(conversationRepository.findByParticipantsSansLogement(any(), any()))
                 .thenReturn(Optional.of(conversation));
         when(messageRepository.save(any())).thenReturn(message);
         when(conversationRepository.save(any())).thenReturn(conversation);
@@ -120,7 +123,8 @@ class MessageServiceTest {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
         when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
         // Aucune conversation existante → creerConversation() est appelé
-        when(conversationRepository.findByParticipants(any(), any())).thenReturn(Optional.empty());
+        when(conversationRepository.findByParticipantsSansLogement(any(), any()))
+                .thenReturn(Optional.empty());
         when(conversationRepository.save(any())).thenReturn(conversation);
         when(participantRepository.save(any())).thenReturn(null);
         when(messageRepository.save(any())).thenReturn(message);
@@ -211,5 +215,77 @@ class MessageServiceTest {
                 "alice@studup.fr", UUID.randomUUID(), "Bonjour"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Destinataire");
+    }
+
+    // ─── Une conversation par annonce (APP-119) ───────────────────────────────
+
+    @Test
+    void shouldUseSeparateConversationPerLogement() {
+        UUID logementBordeaux = UUID.randomUUID();
+        Conversation filBordeaux = Conversation.builder()
+                .id(UUID.randomUUID()).logementId(logementBordeaux)
+                .createdAt(OffsetDateTime.now()).build();
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(logementRepository.findById(logementBordeaux))
+                .thenReturn(Optional.of(Logement.builder().id(logementBordeaux).build()));
+        // Le fil de CETTE annonce existe déjà → il est réutilisé
+        when(conversationRepository.findByParticipantsAndLogement(
+                sender.getId(), receiver.getId(), logementBordeaux))
+                .thenReturn(Optional.of(filBordeaux));
+        when(messageRepository.save(any())).thenReturn(message);
+        when(conversationRepository.save(any())).thenReturn(filBordeaux);
+
+        messageService.sendMessage(
+                "alice@studup.fr", receiver.getId(), "Toujours dispo ?", logementBordeaux);
+
+        // La recherche se fait bien sur (participants + annonce), jamais sur les
+        // seuls participants — sinon on retomberait sur le fil d'une autre annonce
+        verify(conversationRepository).findByParticipantsAndLogement(
+                sender.getId(), receiver.getId(), logementBordeaux);
+        verify(conversationRepository, org.mockito.Mockito.never())
+                .findByParticipantsSansLogement(any(), any());
+    }
+
+    @Test
+    void shouldCreateNewConversationForSecondLogementOfSameOwner() {
+        UUID logementMarseille = UUID.randomUUID();
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(logementRepository.findById(logementMarseille))
+                .thenReturn(Optional.of(Logement.builder().id(logementMarseille).build()));
+        // Aucun fil pour cette 2e annonce, même si un fil existe pour la 1re
+        when(conversationRepository.findByParticipantsAndLogement(
+                any(), any(), eq(logementMarseille))).thenReturn(Optional.empty());
+        when(conversationRepository.save(any())).thenReturn(conversation);
+        when(participantRepository.save(any())).thenReturn(null);
+        when(messageRepository.save(any())).thenReturn(message);
+
+        messageService.sendMessage(
+                "alice@studup.fr", receiver.getId(), "Bonjour", logementMarseille);
+
+        // Un NOUVEAU fil est créé, rattaché à l'annonce de Marseille.
+        // save() est appelé 2 fois : création du fil, puis mise à jour du
+        // lastMessageAt — c'est le PREMIER appel qui porte la création.
+        org.mockito.ArgumentCaptor<Conversation> captor =
+                org.mockito.ArgumentCaptor.forClass(Conversation.class);
+        verify(conversationRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues().get(0).getLogementId()).isEqualTo(logementMarseille);
+    }
+
+    @Test
+    void shouldRejectMessageOnUnknownLogement() {
+        UUID inconnu = UUID.randomUUID();
+
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(logementRepository.findById(inconnu)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> messageService.sendMessage(
+                "alice@studup.fr", receiver.getId(), "Bonjour", inconnu))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Annonce");
     }
 }

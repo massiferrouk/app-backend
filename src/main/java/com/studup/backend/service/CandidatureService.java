@@ -7,14 +7,18 @@ import com.studup.backend.model.entity.Candidature;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.CandidatureStatut;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.repository.CandidatureRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.PhotoLogementRepository;
 import com.studup.backend.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -24,22 +28,27 @@ import java.util.UUID;
 @Service
 public class CandidatureService {
 
+    private static final Logger log = LoggerFactory.getLogger(CandidatureService.class);
+
     private final CandidatureRepository candidatureRepository;
     private final LogementRepository logementRepository;
     private final UserRepository userRepository;
     private final PhotoLogementRepository photoRepository;
     private final MinioService minioService;
+    private final NotificationService notificationService;
 
     public CandidatureService(CandidatureRepository candidatureRepository,
                               LogementRepository logementRepository,
                               UserRepository userRepository,
                               PhotoLogementRepository photoRepository,
-                              MinioService minioService) {
+                              MinioService minioService,
+                              NotificationService notificationService) {
         this.candidatureRepository = candidatureRepository;
         this.logementRepository = logementRepository;
         this.userRepository = userRepository;
         this.photoRepository = photoRepository;
         this.minioService = minioService;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -80,13 +89,65 @@ public class CandidatureService {
                     }
                     return existante;
                 })
-                .orElseGet(() -> candidatureRepository.save(Candidature.builder()
-                        .user(user)
-                        .logement(logement)
-                        .statut(statut)
-                        .build()));
+                .orElseGet(() -> {
+                    Candidature creee = candidatureRepository.save(Candidature.builder()
+                            .user(user)
+                            .logement(logement)
+                            .statut(statut)
+                            .build());
+                    notifierProprietaire(logement, statut, user);
+                    return creee;
+                });
 
         return CandidatureResponse.from(candidature, coverPhoto(logementId));
+    }
+
+    /**
+     * Prévient le propriétaire qu'un étudiant a mis son annonce en favori (APP-119).
+     *
+     * Deux garde-fous volontaires :
+     * - uniquement à la CRÉATION et uniquement en statut A_CONTACTER, donc au
+     *   clic sur « Suivre cette annonce ». Quand la candidature naît d'un
+     *   « Contacter » (statut CONTACTE direct), on ne notifie pas : le
+     *   propriétaire reçoit déjà le message, ce serait un doublon.
+     * - on ne transmet QUE la ville. Le statut de suivi est le tableau de bord
+     *   privé de l'étudiant, le propriétaire ne doit jamais le connaître.
+     *
+     * Jamais bloquant : un échec de notification ne doit pas empêcher de suivre.
+     */
+    private void notifierProprietaire(Logement logement, CandidatureStatut statut, User etudiant) {
+        if (statut != CandidatureStatut.A_CONTACTER) return;
+        // Se suivre soi-même (proprio sur sa propre annonce) ne notifie rien
+        if (logement.getOwner() != null
+                && logement.getOwner().getId().equals(etudiant.getId())) return;
+
+        try {
+            UUID proprioId = logement.getOwner().getId();
+
+            // Anti-spam « retirer / re-suivre » (APP-119) : un même étudiant ne
+            // déclenche qu'UNE alerte par annonce, à vie. Dédupliqué sur le
+            // couple (étudiant, annonce) — un autre étudiant notifie bien.
+            if (notificationService.annonceSuivieDejaNotifiee(
+                    proprioId, logement.getId(), etudiant.getId())) {
+                return;
+            }
+
+            // Le payload persiste ce couple pour la déduplication future.
+            // L'identité de l'étudiant reste interne : le template affiché au
+            // propriétaire ne dit toujours que « un étudiant » + la ville.
+            String payload = "{\"logementId\": \"" + logement.getId()
+                    + "\", \"etudiantId\": \"" + etudiant.getId() + "\"}";
+
+            notificationService.notify(
+                    proprioId,
+                    NotificationType.ANNONCE_SUIVIE,
+                    Map.of("ville", logement.getVille()),
+                    "logement/" + logement.getId(),
+                    payload);
+        } catch (RuntimeException e) {
+            log.warn("Notification ANNONCE_SUIVIE non envoyée pour logementId={}",
+                    logement.getId(), e);
+        }
     }
 
     /** Fait évoluer le statut/la note. Ownership vérifié : c'est un suivi PERSONNEL. */

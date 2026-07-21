@@ -1,12 +1,15 @@
 package com.studup.backend.service;
 
 import com.studup.backend.model.dto.response.ProprietaireDashboardResponse;
+import com.studup.backend.model.entity.ConversationParticipant;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
+import com.studup.backend.repository.CandidatureRepository;
+import com.studup.backend.repository.ConversationParticipantRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +27,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +37,8 @@ class ProprietaireDashboardServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private LogementRepository logementRepository;
     @Mock private AccordRepository accordRepository;
+    @Mock private CandidatureRepository candidatureRepository;
+    @Mock private ConversationParticipantRepository participantRepository;
 
     @InjectMocks private ProprietaireDashboardService service;
 
@@ -54,79 +61,78 @@ class ProprietaireDashboardServiceTest {
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
     }
 
-    // ─── cas nominal : 2 logements actifs, 1 occupé ──────────────────────────
+    private ConversationParticipant participation() {
+        return ConversationParticipant.builder()
+                .id(UUID.randomUUID()).conversationId(UUID.randomUUID())
+                .userId(proprio.getId()).joinedAt(OffsetDateTime.now()).build();
+    }
+
+    // ─── KPIs vivants : étudiants intéressés + conversations (APP-119) ───────
+    // Remplacent « taux d'occupation » et « locataires actifs », qui reposaient
+    // sur des accords EN_COURS jamais atteints et affichaient 0 à vie.
 
     @Test
-    void shouldCalculateOccupancyRate() {
+    void shouldCountInterestedStudentsAndConversations() {
         UUID id1 = UUID.randomUUID();
         UUID id2 = UUID.randomUUID();
-        Logement l1 = logement(id1, LogementStatut.ACTIF);
-        Logement l2 = logement(id2, LogementStatut.ACTIF);
 
         when(userRepository.findByEmail("proprio@studup.fr")).thenReturn(Optional.of(proprio));
-        when(logementRepository.findByOwnerId(proprio.getId())).thenReturn(List.of(l1, l2));
-        // l1 est occupé, l2 est libre
-        when(accordRepository.findOccupiedLogementIds(any())).thenReturn(List.of(id1));
+        when(logementRepository.findByOwnerId(proprio.getId()))
+                .thenReturn(List.of(logement(id1, LogementStatut.ACTIF),
+                        logement(id2, LogementStatut.ACTIF)));
+        when(accordRepository.findOccupiedLogementIds(any())).thenReturn(List.of());
+        // 3 étudiants distincts suivent au moins une des deux annonces
+        when(candidatureRepository.countDistinctUsersByLogementIds(List.of(id1, id2)))
+                .thenReturn(3L);
+        when(participantRepository.findByUserId(proprio.getId()))
+                .thenReturn(List.of(participation(), participation()));
 
         ProprietaireDashboardResponse result = service.getDashboard("proprio@studup.fr");
 
         assertThat(result.nbLogementsTotaux()).isEqualTo(2);
         assertThat(result.nbLogementsActifs()).isEqualTo(2);
-        assertThat(result.nbLocatairesActifs()).isEqualTo(1);
-        assertThat(result.tauxOccupation()).isEqualTo(50.0);
-        assertThat(result.logements()).hasSize(2);
-        assertThat(result.logements().stream().filter(l -> l.id().equals(id1)).findFirst().get().isOccupe()).isTrue();
-        assertThat(result.logements().stream().filter(l -> l.id().equals(id2)).findFirst().get().isOccupe()).isFalse();
+        assertThat(result.nbEtudiantsInteresses()).isEqualTo(3);
+        assertThat(result.nbConversations()).isEqualTo(2);
     }
 
-    // ─── 0 logement actif → taux = 0 (pas de division par zéro) ─────────────
+    // ─── Le drapeau isOccupe des résumés reste alimenté (alerte « vacant ») ───
 
     @Test
-    void shouldReturnZeroOccupancyWhenNoActiveLogement() {
+    void shouldFlagOccupiedLogementsInSummaries() {
         UUID id1 = UUID.randomUUID();
-        Logement brouillon = logement(id1, LogementStatut.BROUILLON);
+        UUID id2 = UUID.randomUUID();
 
         when(userRepository.findByEmail("proprio@studup.fr")).thenReturn(Optional.of(proprio));
-        when(logementRepository.findByOwnerId(proprio.getId())).thenReturn(List.of(brouillon));
-        when(accordRepository.findOccupiedLogementIds(any())).thenReturn(List.of());
+        when(logementRepository.findByOwnerId(proprio.getId()))
+                .thenReturn(List.of(logement(id1, LogementStatut.ACTIF),
+                        logement(id2, LogementStatut.ACTIF)));
+        when(accordRepository.findOccupiedLogementIds(any())).thenReturn(List.of(id1));
+        when(candidatureRepository.countDistinctUsersByLogementIds(any())).thenReturn(0L);
+        when(participantRepository.findByUserId(any())).thenReturn(List.of());
 
         ProprietaireDashboardResponse result = service.getDashboard("proprio@studup.fr");
 
-        assertThat(result.nbLogementsActifs()).isEqualTo(0);
-        assertThat(result.tauxOccupation()).isEqualTo(0.0);
+        assertThat(result.logements().stream()
+                .filter(l -> l.id().equals(id1)).findFirst().get().isOccupe()).isTrue();
+        assertThat(result.logements().stream()
+                .filter(l -> l.id().equals(id2)).findFirst().get().isOccupe()).isFalse();
     }
 
-    // ─── aucun logement → dashboard vide cohérent ────────────────────────────
+    // ─── aucun logement → dashboard vide cohérent, sans requête inutile ──────
 
     @Test
     void shouldReturnEmptyDashboardWhenNoLogements() {
         when(userRepository.findByEmail("proprio@studup.fr")).thenReturn(Optional.of(proprio));
         when(logementRepository.findByOwnerId(proprio.getId())).thenReturn(List.of());
+        when(participantRepository.findByUserId(proprio.getId())).thenReturn(List.of());
 
         ProprietaireDashboardResponse result = service.getDashboard("proprio@studup.fr");
 
         assertThat(result.nbLogementsTotaux()).isEqualTo(0);
-        assertThat(result.nbLocatairesActifs()).isEqualTo(0);
-        assertThat(result.tauxOccupation()).isEqualTo(0.0);
+        assertThat(result.nbEtudiantsInteresses()).isEqualTo(0);
+        assertThat(result.nbConversations()).isEqualTo(0);
         assertThat(result.logements()).isEmpty();
-    }
-
-    // ─── tous les logements actifs et tous occupés → taux = 100 ─────────────
-
-    @Test
-    void shouldReturnFullOccupancyWhenAllOccupied() {
-        UUID id1 = UUID.randomUUID();
-        UUID id2 = UUID.randomUUID();
-
-        when(userRepository.findByEmail("proprio@studup.fr")).thenReturn(Optional.of(proprio));
-        when(logementRepository.findByOwnerId(proprio.getId())).thenReturn(List.of(
-                logement(id1, LogementStatut.ACTIF),
-                logement(id2, LogementStatut.ACTIF)));
-        when(accordRepository.findOccupiedLogementIds(any())).thenReturn(List.of(id1, id2));
-
-        ProprietaireDashboardResponse result = service.getDashboard("proprio@studup.fr");
-
-        assertThat(result.tauxOccupation()).isEqualTo(100.0);
-        assertThat(result.nbLocatairesActifs()).isEqualTo(2);
+        // Sans annonce, on n'interroge pas les candidatures (IN () invalide)
+        verify(candidatureRepository, never()).countDistinctUsersByLogementIds(any());
     }
 }

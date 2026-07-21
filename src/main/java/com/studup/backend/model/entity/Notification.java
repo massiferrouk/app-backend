@@ -45,6 +45,14 @@ public class Notification {
     @Column(name = "deep_link")
     private String deepLink;
 
+    // Données contextuelles JSON (colonne JSONB de V9, mappée depuis APP-119).
+    // Sert notamment à dédupliquer : une notification « annonce suivie » porte
+    // {"logementId": "...", "etudiantId": "..."} pour ne jamais re-notifier le
+    // même couple (étudiant, annonce) si l'étudiant retire puis re-suit.
+    @Column(columnDefinition = "jsonb")
+    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS jsonb)")
+    private String payload;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

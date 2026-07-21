@@ -55,6 +55,17 @@ public class NotificationService {
      */
     @Transactional
     public void notify(UUID userId, NotificationType type, Map<String, String> contextData, String deepLink) {
+        notify(userId, type, contextData, deepLink, null);
+    }
+
+    /**
+     * Variante avec [payload] JSON persisté (APP-119) — données contextuelles
+     * durables (contrairement à contextData, consommé par le template puis
+     * perdu). Utilisé pour dédupliquer les notifications « annonce suivie ».
+     */
+    @Transactional
+    public void notify(UUID userId, NotificationType type, Map<String, String> contextData,
+                       String deepLink, String payload) {
         // 1. Construire le template
         NotificationTemplate template = templateService.buildTemplate(type, contextData != null ? contextData : Map.of());
 
@@ -65,6 +76,7 @@ public class NotificationService {
                 .title(template.title())
                 .body(template.body())
                 .deepLink(deepLink)
+                .payload(payload)
                 .isRead(false)
                 .build();
         notificationRepository.save(notification);
@@ -91,6 +103,16 @@ public class NotificationService {
                 }
             }
         });
+    }
+
+    /**
+     * Ce propriétaire a-t-il déjà été alerté pour ce couple (étudiant, annonce) ?
+     * (APP-119) — voir NotificationRepository.existsAnnonceSuivie.
+     */
+    @Transactional(readOnly = true)
+    public boolean annonceSuivieDejaNotifiee(UUID proprioId, UUID logementId, UUID etudiantId) {
+        return notificationRepository.existsAnnonceSuivie(
+                proprioId, logementId.toString(), etudiantId.toString());
     }
 
     // Vérifie si l'utilisateur a activé les push pour ce type (défaut : activé)

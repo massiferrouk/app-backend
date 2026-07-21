@@ -75,10 +75,11 @@ class MessageControllerTest {
     @Test
     @WithMockUser(username = "alice@studup.fr")
     void shouldReturn201WhenMessageSent() throws Exception {
-        SendMessageRequest request = new SendMessageRequest("Bonjour !");
+        SendMessageRequest request = new SendMessageRequest("Bonjour !", null);
         MessageResponse response = buildResponse();
 
-        when(messageService.sendMessage(eq("alice@studup.fr"), any(UUID.class), eq("Bonjour !")))
+        when(messageService.sendMessage(
+                eq("alice@studup.fr"), any(UUID.class), eq("Bonjour !"), eq(null)))
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/messages/send/" + UUID.randomUUID())
@@ -92,7 +93,7 @@ class MessageControllerTest {
 
     @Test
     void shouldReturn401WhenNotAuthenticated() throws Exception {
-        SendMessageRequest request = new SendMessageRequest("Bonjour !");
+        SendMessageRequest request = new SendMessageRequest("Bonjour !", null);
 
         mockMvc.perform(post("/api/v1/messages/send/" + UUID.randomUUID())
                         .with(csrf())
@@ -104,7 +105,7 @@ class MessageControllerTest {
     @Test
     @WithMockUser(username = "alice@studup.fr")
     void shouldReturn400WhenContentBlank() throws Exception {
-        SendMessageRequest request = new SendMessageRequest("");
+        SendMessageRequest request = new SendMessageRequest("", null);
 
         mockMvc.perform(post("/api/v1/messages/send/" + UUID.randomUUID())
                         .with(csrf())
@@ -121,7 +122,8 @@ class MessageControllerTest {
         var summary = new com.studup.backend.model.dto.response.ConversationSummaryResponse(
                 UUID.randomUUID(), UUID.randomUUID(), "Thomas D.",
                 "Salut, ton studio est libre en mars ?",
-                java.time.OffsetDateTime.now(), 2L);
+                java.time.OffsetDateTime.now(), 2L,
+                UUID.randomUUID(), "Bordeaux", "STUDIO");
 
         when(messageService.getMesConversations("alice@studup.fr"))
                 .thenReturn(java.util.List.of(summary));

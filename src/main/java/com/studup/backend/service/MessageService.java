@@ -8,8 +8,10 @@ import com.studup.backend.model.entity.Conversation;
 import com.studup.backend.model.entity.ConversationParticipant;
 import com.studup.backend.model.entity.Message;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.entity.Logement;
 import com.studup.backend.repository.ConversationParticipantRepository;
 import com.studup.backend.repository.ConversationRepository;
+import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.MessageRepository;
 import com.studup.backend.repository.UserRepository;
 import org.springframework.data.domain.Page;
@@ -30,33 +32,59 @@ public class MessageService {
     private final ConversationRepository conversationRepository;
     private final ConversationParticipantRepository participantRepository;
     private final UserRepository userRepository;
+    private final LogementRepository logementRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     public MessageService(MessageRepository messageRepository,
                           ConversationRepository conversationRepository,
                           ConversationParticipantRepository participantRepository,
                           UserRepository userRepository,
+                          LogementRepository logementRepository,
                           SimpMessagingTemplate messagingTemplate) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.userRepository = userRepository;
+        this.logementRepository = logementRepository;
         this.messagingTemplate = messagingTemplate;
     }
 
     // Crée ou retrouve une conversation entre deux utilisateurs, puis envoie le message
     @Transactional
     public MessageResponse sendMessage(String senderEmail, UUID receiverId, String content) {
+        return sendMessage(senderEmail, receiverId, content, null);
+    }
+
+    /**
+     * Envoie un message, dans le fil de l'annonce [logementId] si elle est
+     * fournie (APP-119).
+     *
+     * Une conversation est identifiée par (participants + annonce) et non par
+     * les seuls participants : un propriétaire qui publie plusieurs logements
+     * doit avoir un fil par annonce, sinon on ne sait plus de quel bien on parle.
+     * [logementId] null = discussion de personne à personne (match alternant).
+     */
+    @Transactional
+    public MessageResponse sendMessage(String senderEmail, UUID receiverId,
+                                       String content, UUID logementId) {
         User sender = userRepository.findByEmail(senderEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
 
         userRepository.findById(receiverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Destinataire introuvable"));
 
-        // Retrouve la conversation existante ou en crée une nouvelle
-        Conversation conversation = conversationRepository
-                .findByParticipants(sender.getId(), receiverId)
-                .orElseGet(() -> creerConversation(sender.getId(), receiverId));
+        // L'annonce doit exister — sinon on créerait un fil orphelin
+        if (logementId != null) {
+            logementRepository.findById(logementId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Annonce introuvable"));
+        }
+
+        // Retrouve la conversation de CETTE annonce, ou en crée une nouvelle
+        Conversation conversation = (logementId == null
+                ? conversationRepository.findByParticipantsSansLogement(sender.getId(), receiverId)
+                : conversationRepository.findByParticipantsAndLogement(
+                        sender.getId(), receiverId, logementId))
+                .orElseGet(() -> creerConversation(sender.getId(), receiverId, logementId));
 
         Message message = Message.builder()
                 .conversationId(conversation.getId())
@@ -124,13 +152,24 @@ public class MessageService {
         long unread = messageRepository
                 .countByConversationIdAndSenderIdNotAndIsReadFalse(conversationId, myUserId);
 
+        // Annonce concernée (APP-119) — null pour une discussion de personne à
+        // personne. Permet de distinguer deux fils avec le même propriétaire.
+        Logement logement = conversationRepository.findById(conversationId)
+                .map(Conversation::getLogementId)
+                .flatMap(logementRepository::findById)
+                .orElse(null);
+
         return new ConversationSummaryResponse(
                 conversationId,
                 partner == null ? null : partner.getId(),
                 partnerName,
                 lastMessage == null ? "" : lastMessage.getContent(),
                 lastMessage == null ? null : lastMessage.getCreatedAt(),
-                unread);
+                unread,
+                logement == null ? null : logement.getId(),
+                logement == null ? null : logement.getVille(),
+                logement == null || logement.getType() == null
+                        ? null : logement.getType().name());
     }
 
     // Historique paginé d'une conversation (50 messages par page)
@@ -167,9 +206,9 @@ public class MessageService {
         return MessageResponse.from(messageRepository.save(message));
     }
 
-    private Conversation creerConversation(UUID userId1, UUID userId2) {
+    private Conversation creerConversation(UUID userId1, UUID userId2, UUID logementId) {
         Conversation conversation = conversationRepository.save(
-                Conversation.builder().build());
+                Conversation.builder().logementId(logementId).build());
 
         participantRepository.save(ConversationParticipant.builder()
                 .conversationId(conversation.getId()).userId(userId1).build());

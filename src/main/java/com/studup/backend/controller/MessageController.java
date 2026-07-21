@@ -51,7 +51,8 @@ public class MessageController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageService.sendMessage(
-                        userDetails.getUsername(), receiverId, request.content()));
+                        userDetails.getUsername(), receiverId,
+                        request.content(), request.logementId()));
     }
 
     // Liste des conversations de l'utilisateur connecté (APP-75)

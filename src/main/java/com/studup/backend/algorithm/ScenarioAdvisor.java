@@ -95,46 +95,52 @@ public class ScenarioAdvisor {
                                             Logement logementA) {
         String v1 = capitalize(logementA.getVille());
         String v2 = capitalize(autreVille(profileA, logementA.getVille()));
-        BigDecimal economie = moitieLoyer(logementA);
+
+        // Économie CERTAINE : partager le logement déjà publié à V1 divise son
+        // loyer par deux. Ne vaut que pour les scénarios qui gardent ce logement
+        // (relais, coloc une ville).
+        BigDecimal economiePartageV1 = moitieLoyer(logementA);
+
+        // APP-120 : le rééquilibrage, lui, suppose un logement à V2 que PERSONNE
+        // n'a publié — son gain dépend d'un loyer inconnu. On n'affiche donc
+        // aucun montant plutôt qu'un chiffre inventé (règle du projet).
+        // Avant, les deux scénarios recevaient la même valeur : l'utilisateur
+        // voyait le même montant partout, dont un faux.
+        BigDecimal economieInconnue = BigDecimal.ZERO;
 
         long semainesEnsembleV1 = result.semaines().stream()
                 .filter(s -> s.type() == CompatibiliteType.COLOCATION)
                 .filter(s -> s.villeAlternantA().equalsIgnoreCase(logementA.getVille()))
                 .count();
 
+        // APP-120 : messages ramenés à l'essentiel (une phrase). Les pavés
+        // précédents noyaient l'information et écrasaient le calendrier.
         List<Scenario> scenarios = new ArrayList<>();
         if (semainesEnsembleV1 == 0) {
             scenarios.add(new Scenario(
                     ScenarioType.RELAIS,
-                    "Vos rythmes sont inversés : en gardant un seul logement à "
-                            + v1 + ", vous ne vous y croiserez jamais. Un loyer "
-                            + "divisé par deux, et chacun l'a pour lui seul.",
-                    economie,
+                    "Un seul logement à " + v1 + " pour vous deux : vos rythmes "
+                            + "sont inversés, vous ne vous y croisez jamais.",
+                    economiePartageV1,
                     ScenarioAction.CONTACTER));
             scenarios.add(new Scenario(
                     ScenarioType.REEQUILIBRER,
-                    "Vous avez tous les deux un logement à " + v1 + " mais aucun à "
-                            + v2 + ". Si l'un de vous lâche le sien et que vous "
-                            + "trouvez un logement à " + v2
-                            + ", vous pourrez faire un échange total.",
-                    economie,
+                    "L'un lâche son logement à " + v1 + " et vous en trouvez un à "
+                            + v2 + " : échange total possible.",
+                    economieInconnue,
                     ScenarioAction.CONTACTER));
         } else {
             scenarios.add(new Scenario(
                     ScenarioType.REEQUILIBRER,
-                    "Vous avez tous les deux un logement à " + v1 + " mais aucun à "
-                            + v2 + ". Si l'un de vous lâche le sien et que vous "
-                            + "trouvez un logement à " + v2
-                            + ", vous partagez les deux loyers.",
-                    economie,
+                    "L'un lâche son logement à " + v1 + " et vous en trouvez un à "
+                            + v2 + " : vous partagez les deux loyers.",
+                    economieInconnue,
                     ScenarioAction.CONTACTER));
             scenarios.add(new Scenario(
                     ScenarioType.COLOC_UNE_VILLE,
-                    "Gardez un seul logement partagé à " + v1 + " et cherchez "
-                            + "chacun votre logement à " + v2 + " : indépendance là "
-                            + "où vous passez le plus de temps, loyer divisé là où "
-                            + "vous ne faites que passer.",
-                    economie,
+                    "Un logement partagé à " + v1 + ", et chacun le sien à "
+                            + v2 + ".",
+                    economiePartageV1,
                     ScenarioAction.CONTACTER));
         }
         return scenarios;

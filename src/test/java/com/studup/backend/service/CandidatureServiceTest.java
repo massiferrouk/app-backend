@@ -7,6 +7,7 @@ import com.studup.backend.model.entity.Candidature;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.CandidatureStatut;
+import com.studup.backend.model.enums.NotificationType;
 import com.studup.backend.repository.CandidatureRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.PhotoLogementRepository;
@@ -19,12 +20,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +41,7 @@ class CandidatureServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private PhotoLogementRepository photoRepository;
     @Mock private MinioService minioService;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks private CandidatureService service;
 
@@ -85,6 +90,101 @@ class CandidatureServiceTest {
         // Statut par défaut quand le client n'en envoie pas
         assertThat(res.statut()).isEqualTo(CandidatureStatut.A_CONTACTER);
         assertThat(res.logement().ville()).isEqualTo("Paris");
+    }
+
+    // ─── Notification « annonce suivie » au propriétaire (APP-119) ────────────
+
+    @Test
+    void shouldNotifyOwnerWhenListingIsFollowed() {
+        stubUser();
+        stubNoPhoto();
+        when(logementRepository.findById(logement.getId())).thenReturn(Optional.of(logement));
+        when(candidatureRepository.findByUserIdAndLogementId(any(), any()))
+                .thenReturn(Optional.empty());
+        when(candidatureRepository.save(any(Candidature.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.suivre(EMAIL, logement.getId(), null);
+
+        // Le propriétaire est prévenu, et le contexte ne porte QUE la ville :
+        // le statut de suivi reste le tableau de bord privé de l'étudiant.
+        // Le payload embarque le couple (étudiant, annonce) pour dédupliquer.
+        verify(notificationService).notify(
+                eq(logement.getOwner().getId()),
+                eq(NotificationType.ANNONCE_SUIVIE),
+                eq(Map.of("ville", "Paris")),
+                anyString(),
+                contains(etudiant.getId().toString()));
+    }
+
+    @Test
+    void shouldNotRenotifyWhenSameStudentRefollows() {
+        stubUser();
+        stubNoPhoto();
+        when(logementRepository.findById(logement.getId())).thenReturn(Optional.of(logement));
+        when(candidatureRepository.findByUserIdAndLogementId(any(), any()))
+                .thenReturn(Optional.empty());
+        when(candidatureRepository.save(any(Candidature.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // L'étudiant avait déjà suivi cette annonce (puis retirée) :
+        // une alerte existe déjà pour ce couple (étudiant, annonce)
+        when(notificationService.annonceSuivieDejaNotifiee(
+                logement.getOwner().getId(), logement.getId(), etudiant.getId()))
+                .thenReturn(true);
+
+        service.suivre(EMAIL, logement.getId(), null);
+
+        // Pas de spam « retirer / re-suivre » : aucune nouvelle alerte
+        verify(notificationService, never())
+                .notify(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void shouldNotNotifyWhenCandidatureCreatedByContacting() {
+        stubUser();
+        stubNoPhoto();
+        when(logementRepository.findById(logement.getId())).thenReturn(Optional.of(logement));
+        when(candidatureRepository.findByUserIdAndLogementId(any(), any()))
+                .thenReturn(Optional.empty());
+        when(candidatureRepository.save(any(Candidature.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // Candidature créée directement en CONTACTE = l'étudiant a écrit au
+        // propriétaire : il reçoit déjà le message, pas de notification en double
+        service.suivre(EMAIL, logement.getId(), CandidatureStatut.CONTACTE);
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void shouldNotNotifyWhenOwnerFollowsOwnListing() {
+        // Le propriétaire suit sa propre annonce : personne à prévenir
+        User proprio = logement.getOwner();
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(proprio));
+        stubNoPhoto();
+        when(logementRepository.findById(logement.getId())).thenReturn(Optional.of(logement));
+        when(candidatureRepository.findByUserIdAndLogementId(any(), any()))
+                .thenReturn(Optional.empty());
+        when(candidatureRepository.save(any(Candidature.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        service.suivre(EMAIL, logement.getId(), null);
+
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void shouldNotNotifyWhenAlreadyFollowed() {
+        stubUser();
+        stubNoPhoto();
+        when(logementRepository.findById(logement.getId())).thenReturn(Optional.of(logement));
+        when(candidatureRepository.findByUserIdAndLogementId(any(), any()))
+                .thenReturn(Optional.of(candidatureExistante(CandidatureStatut.A_CONTACTER, etudiant)));
+
+        // Re-suivre une annonce déjà suivie ne re-notifie pas le propriétaire
+        service.suivre(EMAIL, logement.getId(), null);
+
+        verifyNoInteractions(notificationService);
     }
 
     // Idempotence : re-suivre ne duplique pas et n'écrase pas le statut choisi

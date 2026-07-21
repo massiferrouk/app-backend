@@ -43,15 +43,15 @@ class DashboardControllerTest {
     @WithMockUser(username = "proprio@studup.fr")
     void shouldReturn200WithDashboard() throws Exception {
         ProprietaireDashboardResponse response = new ProprietaireDashboardResponse(
-                2, 2, 1, 50.0, List.of());
+                2, 2, 3, 2, List.of());
 
         when(proprietaireDashboardService.getDashboard(any())).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/dashboard/proprietaire"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nbLogementsTotaux").value(2))
-                .andExpect(jsonPath("$.nbLocatairesActifs").value(1))
-                .andExpect(jsonPath("$.tauxOccupation").value(50.0));
+                .andExpect(jsonPath("$.nbEtudiantsInteresses").value(3))
+                .andExpect(jsonPath("$.nbConversations").value(2));
     }
 
     @Test
@@ -86,14 +86,14 @@ class DashboardControllerTest {
     @WithMockUser(username = "proprio@studup.fr")
     void shouldReturn200WithEmptyDashboard() throws Exception {
         ProprietaireDashboardResponse empty = new ProprietaireDashboardResponse(
-                0, 0, 0, 0.0, List.of());
+                0, 0, 0, 0, List.of());
 
         when(proprietaireDashboardService.getDashboard(any())).thenReturn(empty);
 
         mockMvc.perform(get("/api/v1/dashboard/proprietaire"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nbLogementsTotaux").value(0))
-                .andExpect(jsonPath("$.tauxOccupation").value(0.0))
+                .andExpect(jsonPath("$.nbEtudiantsInteresses").value(0))
                 .andExpect(jsonPath("$.logements").isArray());
     }
 }

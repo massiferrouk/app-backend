@@ -7,6 +7,8 @@ import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.repository.AccordRepository;
+import com.studup.backend.repository.CandidatureRepository;
+import com.studup.backend.repository.ConversationParticipantRepository;
 import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.slf4j.Logger;
@@ -27,13 +29,19 @@ public class ProprietaireDashboardService {
     private final UserRepository userRepository;
     private final LogementRepository logementRepository;
     private final AccordRepository accordRepository;
+    private final CandidatureRepository candidatureRepository;
+    private final ConversationParticipantRepository participantRepository;
 
     public ProprietaireDashboardService(UserRepository userRepository,
                                         LogementRepository logementRepository,
-                                        AccordRepository accordRepository) {
+                                        AccordRepository accordRepository,
+                                        CandidatureRepository candidatureRepository,
+                                        ConversationParticipantRepository participantRepository) {
         this.userRepository = userRepository;
         this.logementRepository = logementRepository;
         this.accordRepository = accordRepository;
+        this.candidatureRepository = candidatureRepository;
+        this.participantRepository = participantRepository;
     }
 
     @Transactional(readOnly = true)
@@ -48,27 +56,33 @@ public class ProprietaireDashboardService {
                 .count();
 
         // Récupère les IDs de logements occupés par un accord EN_COURS
+        // (alimente le drapeau isOccupe des résumés / l'alerte « sans locataire »)
         List<UUID> ids = logements.stream().map(Logement::getId).toList();
         Set<UUID> occupiedIds = ids.isEmpty()
                 ? Set.of()
                 : Set.copyOf(accordRepository.findOccupiedLogementIds(ids));
 
-        double tauxOccupation = nbActifs == 0
-                ? 0.0
-                : Math.round((double) occupiedIds.size() / nbActifs * 100 * 10.0) / 10.0;
+        // KPIs vivants (APP-119) : remplacent « taux d'occupation » et
+        // « locataires actifs », calculés depuis des accords EN_COURS jamais
+        // atteints — ils affichaient 0 à vie. Ici, des chiffres qui bougent
+        // avec l'usage réel : intérêt des étudiants et discussions ouvertes.
+        int nbEtudiantsInteresses = ids.isEmpty()
+                ? 0
+                : (int) candidatureRepository.countDistinctUsersByLogementIds(ids);
+        int nbConversations = participantRepository.findByUserId(user.getId()).size();
 
         List<LogementSummaryResponse> summaries = logements.stream()
                 .map(l -> LogementSummaryResponse.from(l, occupiedIds.contains(l.getId())))
                 .toList();
 
-        log.info("Dashboard propriétaire — userId={} nbLogements={} taux={}%",
-                user.getId(), logements.size(), tauxOccupation);
+        log.info("Dashboard propriétaire — userId={} nbLogements={} interesses={}",
+                user.getId(), logements.size(), nbEtudiantsInteresses);
 
         return new ProprietaireDashboardResponse(
                 logements.size(),
                 (int) nbActifs,
-                occupiedIds.size(),
-                tauxOccupation,
+                nbEtudiantsInteresses,
+                nbConversations,
                 summaries
         );
     }

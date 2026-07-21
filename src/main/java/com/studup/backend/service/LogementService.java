@@ -165,10 +165,57 @@ public class LogementService {
         }
 
         logement.setStatut(LogementStatut.ACTIF);
+        // APP-120 : la publication est le moment où le logement entre dans le
+        // matching — on déduit donc sa ville associée ici. Avant, elle restait
+        // nulle tant que l'utilisateur n'avait pas cliqué « Associer », et le
+        // matching l'ignorait silencieusement (MatchingService filtre sur ce
+        // champ) : l'alternant restait en « match potentiel » sans savoir
+        // pourquoi, alors qu'il avait bien publié son logement.
+        deduireVilleAssociee(logement);
         logement = logementRepository.save(logement);
 
         List<String> photoUrls = getPhotoUrls(logementId);
         return LogementResponse.from(logement, photoUrls);
+    }
+
+    /**
+     * Déduit la ville associée à partir de la ville du logement et du profil
+     * alternant (APP-120).
+     *
+     * Le choix manuel n'en était pas un : le backend connaissait déjà la seule
+     * réponse valide et se contentait de vérifier que l'utilisateur l'avait
+     * devinée. On la calcule donc directement.
+     *
+     * Ne fait rien si :
+     * - le propriétaire n'est pas alternant (un bailleur n'a pas de villes) ;
+     * - le logement n'est dans aucune des deux villes du profil — il n'entre
+     *   alors pas dans le matching, et l'app doit le dire à l'utilisateur ;
+     * - la ville visée est déjà prise par un autre logement actif.
+     */
+    private void deduireVilleAssociee(Logement logement) {
+        AlternantProfile profile = alternantProfileRepository
+                .findByUserId(logement.getOwner().getId())
+                .orElse(null);
+        if (profile == null) return;
+
+        VilleAssociee cible;
+        if (logement.getVille().equalsIgnoreCase(profile.getVilleA())) {
+            cible = VilleAssociee.VILLE_A;
+        } else if (logement.getVille().equalsIgnoreCase(profile.getVilleB())) {
+            cible = VilleAssociee.VILLE_B;
+        } else {
+            return; // hors des deux villes : pas de matching possible
+        }
+
+        // Un seul logement par ville (même règle que l'association manuelle)
+        boolean dejaPrise = logementRepository.findByOwnerId(logement.getOwner().getId())
+                .stream()
+                .anyMatch(l -> !l.getId().equals(logement.getId())
+                        && l.getStatut() != LogementStatut.ARCHIVE
+                        && cible.equals(l.getVilleAssociee()));
+        if (dejaPrise) return;
+
+        logement.setVilleAssociee(cible);
     }
 
     @Transactional

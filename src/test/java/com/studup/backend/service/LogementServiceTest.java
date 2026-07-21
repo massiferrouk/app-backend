@@ -199,6 +199,67 @@ class LogementServiceTest {
         assertThat(response.statut()).isEqualTo(LogementStatut.ACTIF);
     }
 
+    // ─── Ville associée déduite à la publication (APP-120) ───────────────────
+
+    @Test
+    void shouldDeriveVilleAssocieeOnPublish() {
+        AlternantProfile profile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(fakeOwner)
+                .villeA("Paris").villeB("Lyon").build();
+
+        // fakeLogement est à Paris → VILLE_A, sans aucune action de l'utilisateur
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId()))
+                .thenReturn(Optional.of(profile));
+        when(logementRepository.findByOwnerId(fakeOwner.getId()))
+                .thenReturn(List.of(fakeLogement));
+        when(logementRepository.save(any(Logement.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(any())).thenReturn(List.of());
+
+        LogementResponse response =
+                logementService.publishLogement("pierre@studup.fr", fakeLogement.getId());
+
+        // Sans ça, le matching ignorait le logement en silence
+        assertThat(response.villeAssociee()).isEqualTo(VilleAssociee.VILLE_A);
+    }
+
+    @Test
+    void shouldLeaveVilleAssocieeNullWhenLogementOutsideProfileCities() {
+        AlternantProfile profile = AlternantProfile.builder()
+                .id(UUID.randomUUID()).user(fakeOwner)
+                .villeA("Bordeaux").villeB("Marseille").build();
+
+        // Logement à Paris : ni école ni entreprise → hors matching
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId()))
+                .thenReturn(Optional.of(profile));
+        when(logementRepository.save(any(Logement.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(any())).thenReturn(List.of());
+
+        LogementResponse response =
+                logementService.publishLogement("pierre@studup.fr", fakeLogement.getId());
+
+        assertThat(response.villeAssociee()).isNull();
+    }
+
+    @Test
+    void shouldNotDeriveVilleAssocieeForProprietaire() {
+        // Pas de profil alternant : un bailleur n'a pas de villes de référence
+        when(userRepository.findByEmail("pierre@studup.fr")).thenReturn(Optional.of(fakeOwner));
+        when(logementRepository.findById(fakeLogement.getId())).thenReturn(Optional.of(fakeLogement));
+        when(alternantProfileRepository.findByUserId(fakeOwner.getId()))
+                .thenReturn(Optional.empty());
+        when(logementRepository.save(any(Logement.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(photoRepository.findByLogementIdOrderByOrdreAsc(any())).thenReturn(List.of());
+
+        LogementResponse response =
+                logementService.publishLogement("pierre@studup.fr", fakeLogement.getId());
+
+        assertThat(response.villeAssociee()).isNull();
+    }
+
     @Test
     void shouldRejectPublishWhenNotOwner() {
         User autreUser = User.builder()

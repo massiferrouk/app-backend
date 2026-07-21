@@ -1,16 +1,13 @@
 package com.studup.backend.service;
 
 import com.studup.backend.model.dto.response.AlternantDashboardResponse;
+import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.entity.Accord;
-import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.AccordStatut;
 import com.studup.backend.model.enums.AccordType;
-import com.studup.backend.model.enums.LogementStatut;
-import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AccordRepository;
-import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +33,7 @@ class AlternantDashboardServiceTest {
 
     @Mock private UserRepository userRepository;
     @Mock private AccordRepository accordRepository;
-    @Mock private LogementRepository logementRepository;
+    @Mock private MatchingService matchingService;
 
     @InjectMocks private AlternantDashboardService service;
 
@@ -68,12 +65,14 @@ class AlternantDashboardServiceTest {
                 .createdAt(OffsetDateTime.now()).build();
     }
 
-    private Logement logement(BigDecimal loyer) {
-        return Logement.builder()
-                .id(UUID.randomUUID()).ville("Paris").adresse("1 rue Test").codePostal("75001")
-                .type(LogementType.STUDIO).statut(LogementStatut.ACTIF).loyer(loyer)
-                .nbPieces(1).isVerified(false).isMeuble(true)
-                .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now()).build();
+    /** Suggestion minimale portant une économie possible */
+    private MatchingSuggestionResponse suggestion(BigDecimal economie) {
+        return new MatchingSuggestionResponse(
+                UUID.randomUUID(), UUID.randomUUID(), "Bob", "B",
+                "Paris", "Lyon", 0.75, 75,
+                AccordType.ECHANGE_PARTIEL, true, null,
+                3, 0, 1, null, List.of(),
+                null, null, economie, List.of());
     }
 
     // ─── cas nominal : accord prochain + accord en attente ───────────────────
@@ -89,7 +88,7 @@ class AlternantDashboardServiceTest {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(accordRepository.findProchainAccords(eq(alice.getId()), any())).thenReturn(List.of(prochain));
         when(accordRepository.findAccordsEnAttenteForReceiver(alice.getId())).thenReturn(List.of(enAttente));
-        when(accordRepository.findAccordsTerminesEchange(alice.getId())).thenReturn(List.of());
+        when(matchingService.getSuggestions("alice@studup.fr")).thenReturn(List.of());
 
         AlternantDashboardResponse result = service.getDashboard("alice@studup.fr");
 
@@ -99,44 +98,39 @@ class AlternantDashboardServiceTest {
         assertThat(result.accordsEnAttente().get(0).heuresAvantExpiration()).isLessThanOrEqualTo(72L);
     }
 
-    // ─── calcul économies : 1 accord terminé de 3 mois, loyer 900€ ──────────
+    // ─── KPIs vivants : nb de matches + meilleure économie POSSIBLE (APP-120) ─
 
     @Test
-    void shouldCalculateSavings() {
-        LocalDate debut = LocalDate.now().minusMonths(4);
-        LocalDate fin = debut.plusMonths(3);
-        Accord termine = accord(AccordType.ECHANGE_TOTAL, AccordStatut.TERMINE, debut, fin);
-
+    void shouldExposeMatchCountAndBestPossibleSaving() {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(accordRepository.findProchainAccords(any(), any())).thenReturn(List.of());
         when(accordRepository.findAccordsEnAttenteForReceiver(any())).thenReturn(List.of());
-        when(accordRepository.findAccordsTerminesEchange(alice.getId())).thenReturn(List.of(termine));
-        when(logementRepository.findByOwnerId(alice.getId()))
-                .thenReturn(List.of(logement(BigDecimal.valueOf(900))));
+        when(matchingService.getSuggestions("alice@studup.fr")).thenReturn(List.of(
+                suggestion(BigDecimal.valueOf(150)),
+                suggestion(BigDecimal.valueOf(283)),
+                suggestion(BigDecimal.valueOf(90))));
 
         AlternantDashboardResponse result = service.getDashboard("alice@studup.fr");
 
-        // 900€ × 3 mois = 2700€
-        assertThat(result.economiesEstimees()).isEqualByComparingTo(BigDecimal.valueOf(2700.00));
-        assertThat(result.nbAccordsTermines()).isEqualTo(1);
+        assertThat(result.nbMatchesCompatibles()).isEqualTo(3);
+        // On met en avant le MEILLEUR potentiel, pas la somme
+        assertThat(result.economiePossibleMax()).isEqualByComparingTo(BigDecimal.valueOf(283));
     }
 
-    // ─── aucun logement → économies = 0 ──────────────────────────────────────
+    // ─── aucune économie chiffrée → 0, jamais de chiffre inventé ─────────────
 
     @Test
-    void shouldReturnZeroSavingsWhenNoLogement() {
-        Accord termine = accord(AccordType.ECHANGE_TOTAL, AccordStatut.TERMINE,
-                LocalDate.now().minusMonths(3), LocalDate.now().minusMonths(1));
-
+    void shouldReturnZeroSavingWhenNoRentKnown() {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(accordRepository.findProchainAccords(any(), any())).thenReturn(List.of());
         when(accordRepository.findAccordsEnAttenteForReceiver(any())).thenReturn(List.of());
-        when(accordRepository.findAccordsTerminesEchange(alice.getId())).thenReturn(List.of(termine));
-        when(logementRepository.findByOwnerId(alice.getId())).thenReturn(List.of());
+        when(matchingService.getSuggestions("alice@studup.fr"))
+                .thenReturn(List.of(suggestion(BigDecimal.ZERO)));
 
         AlternantDashboardResponse result = service.getDashboard("alice@studup.fr");
 
-        assertThat(result.economiesEstimees()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.nbMatchesCompatibles()).isEqualTo(1);
+        assertThat(result.economiePossibleMax()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     // ─── dashboard vide ───────────────────────────────────────────────────────
@@ -146,14 +140,14 @@ class AlternantDashboardServiceTest {
         when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(alice));
         when(accordRepository.findProchainAccords(any(), any())).thenReturn(List.of());
         when(accordRepository.findAccordsEnAttenteForReceiver(any())).thenReturn(List.of());
-        when(accordRepository.findAccordsTerminesEchange(any())).thenReturn(List.of());
+        when(matchingService.getSuggestions(any())).thenReturn(List.of());
 
         AlternantDashboardResponse result = service.getDashboard("alice@studup.fr");
 
         assertThat(result.prochainAccords()).isEmpty();
         assertThat(result.accordsEnAttente()).isEmpty();
-        assertThat(result.economiesEstimees()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(result.nbAccordsTermines()).isEqualTo(0);
+        assertThat(result.economiePossibleMax()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(result.nbMatchesCompatibles()).isEqualTo(0);
     }
 
     // ─── countdown expiration : accord créé il y a 70h → 2h restantes ───────
@@ -172,7 +166,7 @@ class AlternantDashboardServiceTest {
         when(accordRepository.findProchainAccords(any(), any())).thenReturn(List.of());
         when(accordRepository.findAccordsEnAttenteForReceiver(alice.getId()))
                 .thenReturn(List.of(enAttente));
-        when(accordRepository.findAccordsTerminesEchange(any())).thenReturn(List.of());
+        when(matchingService.getSuggestions(any())).thenReturn(List.of());
 
         AlternantDashboardResponse result = service.getDashboard("alice@studup.fr");
 

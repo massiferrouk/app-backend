@@ -16,10 +16,6 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
     // Tous les avis reçus par un utilisateur (non modérés)
     Page<Review> findByTargetUserIdAndIsModeratedFalse(UUID targetUserId, Pageable pageable);
 
-    // Vérifie qu'un auteur n'a pas déjà laissé un avis USER sur cet accord
-    Optional<Review> findByAuthorIdAndAccordIdAndTargetType(
-            UUID authorId, UUID accordId, ReviewTargetType targetType);
-
     // Vérifie l'unicité auteur + accord + cible utilisateur
     Optional<Review> findByAuthorIdAndAccordIdAndTargetUserId(
             UUID authorId, UUID accordId, UUID targetUserId);

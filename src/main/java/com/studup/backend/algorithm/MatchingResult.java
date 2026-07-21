@@ -5,10 +5,17 @@ import com.studup.backend.model.enums.AccordType;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Résultat du calcul de compatibilité entre deux alternants.
+ *
+ * Ne contient QUE ce que l'algorithme sait déduire des deux calendriers et des
+ * loyers. Savoir si un match est « actif » (les logements nécessaires sont
+ * publiés) demande une vue sur les logements des deux côtés : c'est le rôle du
+ * MatchingService, pas du calculateur.
+ */
 public record MatchingResult(
         double score,
         AccordType typePropose,
-        boolean isMatchActif,
         String messageMatchPotentiel,
         List<SemaineCompatibilite> semaines,
         int nbSemainesEchange,
@@ -20,7 +27,6 @@ public record MatchingResult(
         int nbSemainesEchangePotentiel,
         int nbSemainesColocation,
         int nbSemainesChevauchement,
-        BigDecimal economieEstimeeMin,
-        BigDecimal economieEstimeeMax,
+        BigDecimal economieMensuelle,
         String messageResume
 ) {}

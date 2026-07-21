@@ -126,9 +126,7 @@ class CalendrierServiceTest {
                 SemaineCompatibilite.of(LocalDate.of(2026, 1, 26), "Paris", "Lyon", CompatibiliteType.ECHANGE)
         );
 
-        MatchingResult result = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, null, semaines, 4, 4, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "4 sem d'échange");
+        MatchingResult result = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL, null, semaines, 4, 4, 0, 0, BigDecimal.ZERO, "4 sem d'échange");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
@@ -155,9 +153,7 @@ class CalendrierServiceTest {
                 SemaineCompatibilite.of(semaine.plusWeeks(2), "Paris", "Paris", CompatibiliteType.COLOCATION)
         );
 
-        MatchingResult result = new MatchingResult(0.33, AccordType.ECHANGE_PARTIEL,
-                false, null, semaines, 1, 1, 1, 1,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult result = new MatchingResult(0.33, AccordType.ECHANGE_PARTIEL, null, semaines, 1, 1, 1, 1, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 
@@ -199,9 +195,7 @@ class CalendrierServiceTest {
         when(profileRepository.findByUserId(userId2)).thenReturn(Optional.of(profileB));
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
-        MatchingResult result = new MatchingResult(0.0, null,
-                false, null, List.of(), 0, 0, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine");
+        MatchingResult result = new MatchingResult(0.0, null, null, List.of(), 0, 0, 0, 0, BigDecimal.ZERO, "Aucune semaine");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 

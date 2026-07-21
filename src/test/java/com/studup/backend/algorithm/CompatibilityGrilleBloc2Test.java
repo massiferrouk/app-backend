@@ -94,7 +94,7 @@ class CompatibilityGrilleBloc2Test {
         assertThat(result.nbSemainesEchange()).isZero();
         assertThat(result.nbSemainesEchangePotentiel()).isEqualTo(8);
         assertThat(result.score()).isZero();
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("0");
 
         // Scénario « publier » pour les deux
         List<Scenario> scenarios = scenarios(result, null, null);
@@ -148,7 +148,7 @@ class CompatibilityGrilleBloc2Test {
         assertThat(result.score()).isEqualTo(0.75);
         assertThat(result.nbSemainesEchange()).isEqualTo(6);
         // Économie de Massi : loyer de Félix (800, Paris) × 6/8 = 600 €/mois
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("600");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("600");
 
         // Match prêt : aucun scénario conditionnel nécessaire
         assertThat(scenarios(result, logementMassi, logementFelix)).isEmpty();
@@ -252,7 +252,7 @@ class CompatibilityGrilleBloc2Test {
         // partage des deux logements, loyers divisés par deux
         assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
         assertThat(result.nbSemainesColocation()).isEqualTo(8);
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("775"); // (900+650)/2
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("775"); // (900+650)/2
     }
 
     // ─── Cas 46 : logement dans une 3ᵉ ville — rien d'absurde ────────────────
@@ -267,7 +267,7 @@ class CompatibilityGrilleBloc2Test {
         // Personne ne va jamais à Lille : aucun échange réel, aucune économie
         assertThat(result.nbSemainesEchange()).isZero();
         assertThat(result.typePropose()).isNull();
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("0");
         assertThat(scenarios(result, logementMassi, logementFelix)).isEmpty();
     }
 

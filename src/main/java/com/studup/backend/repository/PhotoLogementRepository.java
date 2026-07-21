@@ -16,8 +16,6 @@ public interface PhotoLogementRepository extends JpaRepository<PhotoLogement, UU
 
     int countByLogementId(UUID logementId);
 
-    void deleteByLogementId(UUID logementId);
-
     // Projection des clés MinIO seules (ordre d'affichage) — évite de charger
     // des entités managées avant une suppression (conflit persistence/cascade),
     // et sert à récupérer la photo de couverture (première) pour les listes.

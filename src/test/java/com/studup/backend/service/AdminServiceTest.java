@@ -5,6 +5,7 @@ import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.response.AdminUserResponse;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.UserRole;
+import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
 import com.studup.backend.security.JwtBlacklistService;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.*;
 class AdminServiceTest {
 
     @Mock private UserRepository userRepository;
+    @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private JwtBlacklistService jwtBlacklistService;
 
     @InjectMocks
@@ -96,7 +98,10 @@ class AdminServiceTest {
         AdminUserResponse result = adminService.suspendUser(alternantUser.getId(), "admin@studup.fr");
 
         assertThat(alternantUser.getIsActive()).isFalse();
+        // Les deux canaux : sans la révocation des refresh tokens, le compte
+        // suspendu se redonnait un access token neuf via /auth/refresh.
         verify(jwtBlacklistService).revokeAllForUser(alternantUser.getId());
+        verify(refreshTokenRepository).revokeAllByUserId(alternantUser.getId());
         verify(userRepository).save(alternantUser);
     }
 

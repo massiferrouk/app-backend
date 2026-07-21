@@ -126,19 +126,12 @@ public class CompatibilityCalculator {
                 ? determineAccordType(nbEchange, nbColocation, total)
                 : determineAccordType(nbEchangePotentiel, nbColocation, total);
 
-        // Match actif = les deux alternants ont les logements nécessaires publiés
-        // Pour l'instant on retourne false — sera enrichi dans MatchingService
-        boolean isMatchActif = false;
         String messageMatchPotentiel = buildMessageMatchPotentiel(
                 typePropose, logementA, logementB);
 
-        // Économie mensuelle estimée du point de vue de A (APP-103).
-        // min = ce qui est certain avec les loyers connus, max = identique
-        // pour l'instant (fourchette réservée aux évolutions futures).
+        // Économie mensuelle estimée du point de vue de A (APP-103)
         BigDecimal economie = calculerEconomieMensuelle(
                 typePropose, semaines, logementA, logementB);
-        BigDecimal economieMin = economie;
-        BigDecimal economieMax = economie;
 
         int nbChacunChezSoi = total - nbEchange - nbColocation;
         String messageResume = buildMessageResume(
@@ -147,15 +140,13 @@ public class CompatibilityCalculator {
         return new MatchingResult(
                 score,
                 typePropose,
-                isMatchActif,
                 messageMatchPotentiel,
                 semaines,
                 nbEchange,
                 nbEchangePotentiel,
                 nbColocation,
                 nbChevauchement,
-                economieMin,
-                economieMax,
+                economie,
                 messageResume
         );
     }
@@ -304,8 +295,8 @@ public class CompatibilityCalculator {
     }
 
     private MatchingResult emptyResult() {
-        return new MatchingResult(0.0, null, false, null,
+        return new MatchingResult(0.0, null, null,
                 List.of(), 0, 0, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine commune");
+                BigDecimal.ZERO, "Aucune semaine commune");
     }
 }

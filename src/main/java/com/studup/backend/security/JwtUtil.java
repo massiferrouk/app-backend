@@ -98,11 +98,6 @@ public class JwtUtil {
         return extractClaims(token).getId();
     }
 
-    /** Extrait le rôle depuis le token — uniquement présent dans les access tokens. */
-    public String extractRole(String token) {
-        return extractClaims(token).get("role", String.class);
-    }
-
     /** Retourne la date d'expiration du token. */
     public Date extractExpiration(String token) {
         return extractClaims(token).getExpiration();

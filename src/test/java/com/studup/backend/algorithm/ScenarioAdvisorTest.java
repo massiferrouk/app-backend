@@ -67,9 +67,8 @@ class ScenarioAdvisorTest {
         }
         // potentiel = nbEchange : dans ces tests unitaires les semaines
         // d'échange simulées sont aussi des semaines potentielles
-        return new MatchingResult(1.0, type, false, null, semaines,
-                nbEchange, nbEchange, nbColocParis, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "");
+        return new MatchingResult(1.0, type, null, semaines,
+                nbEchange, nbEchange, nbColocParis, 0, BigDecimal.ZERO, "");
     }
 
     // ─── S2 / S3 / S4 : logements manquants pour un échange ──────────────────
@@ -122,13 +121,17 @@ class ScenarioAdvisorTest {
         assertThat(scenarios).hasSize(2);
         // Priorité validée : RELAIS d'abord (zéro compromis)
         assertThat(scenarios.get(0).type()).isEqualTo(ScenarioType.RELAIS);
-        assertThat(scenarios.get(0).message()).contains("ne vous y croiserez jamais");
-        // Économie certaine : mon loyer / 2 = 350
+        assertThat(scenarios.get(0).message()).contains("vous ne vous y croisez jamais");
+        // Économie certaine : partager le logement publié → mon loyer / 2 = 350
         assertThat(scenarios.get(0).economieMensuelle()).isEqualByComparingTo("350");
         // Le rééquilibrage mène à un échange (rythmes inversés)
         assertThat(scenarios.get(1).type()).isEqualTo(ScenarioType.REEQUILIBRER);
         assertThat(scenarios.get(1).message()).contains("échange total");
         assertThat(scenarios.get(1).message()).contains("Lyon");
+        // APP-120 : aucun montant sur le rééquilibrage — il dépend d'un loyer
+        // à Lyon que personne n'a publié. Les deux scénarios affichaient avant
+        // le MÊME chiffre, dont un faux.
+        assertThat(scenarios.get(1).economieMensuelle()).isEqualByComparingTo("0");
     }
 
     @Test
@@ -141,10 +144,14 @@ class ScenarioAdvisorTest {
         assertThat(scenarios).hasSize(2);
         assertThat(scenarios.get(0).type()).isEqualTo(ScenarioType.REEQUILIBRER);
         assertThat(scenarios.get(0).message()).contains("partagez les deux loyers");
+        // APP-120 : gain inconnu (dépend d'un loyer à Lyon non publié)
+        assertThat(scenarios.get(0).economieMensuelle()).isEqualByComparingTo("0");
         assertThat(scenarios.get(1).type()).isEqualTo(ScenarioType.COLOC_UNE_VILLE);
         assertThat(scenarios.get(1).message()).contains("Paris");
         assertThat(scenarios.get(1).message()).contains("Lyon");
         assertThat(scenarios.get(1).action()).isEqualTo(ScenarioAction.CONTACTER);
+        // Celui-ci garde le logement publié à Paris → gain certain (700 / 2)
+        assertThat(scenarios.get(1).economieMensuelle()).isEqualByComparingTo("350");
     }
 
     @Test

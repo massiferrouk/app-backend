@@ -5,6 +5,7 @@ import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.response.AdminUserResponse;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.model.enums.UserRole;
+import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
 import com.studup.backend.security.JwtBlacklistService;
 import org.slf4j.Logger;
@@ -22,11 +23,14 @@ public class AdminService {
     private static final Logger log = LoggerFactory.getLogger(AdminService.class);
 
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final JwtBlacklistService jwtBlacklistService;
 
     public AdminService(UserRepository userRepository,
+                        RefreshTokenRepository refreshTokenRepository,
                         JwtBlacklistService jwtBlacklistService) {
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.jwtBlacklistService = jwtBlacklistService;
     }
 
@@ -42,8 +46,7 @@ public class AdminService {
         checkNotAdmin(user);
 
         user.setIsActive(false);
-        // Révocation immédiate de tous les tokens actifs de l'utilisateur suspendu
-        jwtBlacklistService.revokeAllForUser(userId);
+        revoquerTousLesAcces(userId);
 
         log.info("Utilisateur {} suspendu par {}", userId, adminEmail);
         return AdminUserResponse.from(userRepository.save(user));
@@ -56,10 +59,23 @@ public class AdminService {
 
         user.setIsActive(false);
         user.setDeletedAt(java.time.OffsetDateTime.now());
-        jwtBlacklistService.revokeAllForUser(userId);
+        revoquerTousLesAcces(userId);
 
         log.info("Utilisateur {} banni par {}", userId, adminEmail);
         return AdminUserResponse.from(userRepository.save(user));
+    }
+
+    /**
+     * Coupe l'accès immédiatement, sur les deux canaux — l'un sans l'autre
+     * ne suffit pas :
+     * - Redis coupe les access tokens déjà émis (sinon le compte reste servi
+     *   jusqu'à leur expiration) ;
+     * - la révocation des refresh tokens empêche d'en obtenir de nouveaux
+     *   (sinon le bannissement se contourne indéfiniment par /auth/refresh).
+     */
+    private void revoquerTousLesAcces(UUID userId) {
+        jwtBlacklistService.revokeAllForUser(userId);
+        refreshTokenRepository.revokeAllByUserId(userId);
     }
 
     private User findUserOrThrow(UUID userId) {

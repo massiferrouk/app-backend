@@ -72,8 +72,8 @@ class DashboardControllerTest {
 
         mockMvc.perform(get("/api/v1/dashboard/alternant"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nbAccordsTermines").value(1))
-                .andExpect(jsonPath("$.economiesEstimees").value(2700));
+                .andExpect(jsonPath("$.nbMatchesCompatibles").value(1))
+                .andExpect(jsonPath("$.economiePossibleMax").value(2700));
     }
 
     @Test

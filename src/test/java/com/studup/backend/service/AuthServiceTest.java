@@ -184,6 +184,33 @@ class AuthServiceTest {
     // ─── Tests renouvellement ─────────────────────────────────────────────────
 
     @Test
+    void shouldRejectRefreshWhenAccountSuspended() {
+        // Un compte suspendu par un admin garde un refresh token valide en base :
+        // sans ce contrôle, il se redonnait un access token neuf indéfiniment,
+        // et la suspension ne durait que 15 minutes.
+        RefreshRequest request = new RefreshRequest("valid-refresh-token");
+        UUID userId = UUID.randomUUID();
+        User suspendu = buildUser("banni@studup.fr");
+        suspendu.setIsActive(false);
+
+        when(jwtUtil.isTokenValid("valid-refresh-token")).thenReturn(true);
+        RefreshToken storedToken = RefreshToken.builder()
+                .userId(userId)
+                .tokenHash("some-hash")
+                .isRevoked(false)
+                .expiresAt(OffsetDateTime.now().plusDays(7))
+                .build();
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(storedToken));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(suspendu));
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("plus actif");
+
+        verify(jwtUtil, never()).generateAccessToken(any(), anyString(), anyString());
+    }
+
+    @Test
     void shouldRefreshTokens() {
         RefreshRequest request = new RefreshRequest("valid-refresh-token");
         UUID userId = UUID.randomUUID();

@@ -39,46 +39,49 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // Étape 1 : lire le header Authorization
         String authHeader = request.getHeader("Authorization");
 
-        // Si le header est absent ou ne commence pas par "Bearer ", on laisse passer sans authentifier
-        // Spring Security refusera l'accès plus loin si la route est protégée
+        // Pas de header : on laisse passer sans authentifier. C'est Spring
+        // Security, plus loin dans la chaîne, qui refusera si la route est
+        // protégée — le filtre n'a pas à décider de l'autorisation.
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Étape 2 : extraire le token (tout ce qui suit "Bearer ")
         String token = authHeader.substring(7);
 
-        // Étape 3 : valider le token — signature valide ET non révoqué ET pas déjà authentifié
+        // Deux révocations distinctes, et il faut les deux :
+        // - isBlacklisted(jti)      → CE token précis a été révoqué (logout) ;
+        // - isUserRevoked(userId)   → TOUS les tokens de l'utilisateur ont été
+        //   révoqués (suspension / bannissement par un admin). Sans cette
+        //   seconde vérification, un compte banni continuait d'être servi
+        //   jusqu'à l'expiration de son access token.
         String jti = jwtUtil.extractJti(token);
         if (jwtUtil.isTokenValid(token)
                 && !jwtBlacklistService.isBlacklisted(jti)
+                && !jwtBlacklistService.isUserRevoked(jwtUtil.extractUserId(token))
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            // Charger l'utilisateur depuis la BDD à partir de son userId dans le token
+            // On recharge l'utilisateur en base plutôt que de faire confiance
+            // aux claims : un rôle modifié depuis l'émission du token doit
+            // prendre effet immédiatement.
             String email = jwtUtil.extractClaims(token).get("email", String.class);
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            // Étape 4 : créer l'objet d'authentification et l'enregistrer dans le SecurityContext
-            // UsernamePasswordAuthenticationToken(principal, credentials, authorities)
-            // credentials = null car on n'a plus besoin du mot de passe à ce stade
+            // credentials = null : le mot de passe n'a plus à circuler ici
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     userDetails,
                     null,
                     userDetails.getAuthorities()
             );
 
-            // Ajoute des détails sur la requête (IP, session) — utile pour les logs de sécurité
+            // IP et session — tracés dans les logs de sécurité
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-            // Enregistre l'authentification : à partir d'ici, Spring Security sait qui fait la requête
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
-        // On passe à la suite de la chaîne de filtres (puis au controller)
         filterChain.doFilter(request, response);
     }
 }

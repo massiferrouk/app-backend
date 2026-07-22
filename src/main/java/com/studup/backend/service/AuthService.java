@@ -2,6 +2,7 @@ package com.studup.backend.service;
 
 import com.studup.backend.exception.DuplicateEmailException;
 import com.studup.backend.exception.EmailNotConfirmedException;
+import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.LoginRequest;
 import com.studup.backend.model.dto.request.RefreshRequest;
@@ -154,7 +155,14 @@ public class AuthService {
         refreshTokenRepository.save(storedToken);
 
         User user = userRepository.findById(storedToken.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable"));
+
+        // Un compte suspendu ou supprimé ne doit plus pouvoir se re-délivrer
+        // de tokens : sans ce contrôle, le bannissement ne durait que le temps
+        // de l'access token courant, puis /auth/refresh le contournait.
+        if (Boolean.FALSE.equals(user.getIsActive()) || user.getDeletedAt() != null) {
+            throw new UnauthorizedException("Ce compte n'est plus actif");
+        }
 
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String newRawRefreshToken = jwtUtil.generateRefreshToken(user.getId());

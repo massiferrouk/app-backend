@@ -39,9 +39,9 @@ public record MatchingSuggestionResponse(
         List<ScenarioResponse> scenarios
 ) {
     /**
-     * isMatchActif et les IDs de logements sont calculés dans le MatchingService
-     * (le CompatibilityCalculator ne connaît pas les logements), on les passe donc
-     * explicitement ici plutôt que via result.isMatchActif() (toujours false).
+     * isMatchActif et les IDs de logements viennent du MatchingService : le
+     * CompatibilityCalculator ne voit que les calendriers, pas l'état de
+     * publication des logements. Ils sont donc passés en paramètres.
      */
     public static MatchingSuggestionResponse from(AlternantProfile profile,
                                                   MatchingResult result,
@@ -68,7 +68,7 @@ public record MatchingSuggestionResponse(
                 result.semaines(),
                 logementAId,
                 logementBId,
-                result.economieEstimeeMax(),
+                result.economieMensuelle(),
                 scenarios.stream().map(ScenarioResponse::from).toList()
         );
     }

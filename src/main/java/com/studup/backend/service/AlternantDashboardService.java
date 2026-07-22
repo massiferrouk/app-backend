@@ -3,11 +3,10 @@ package com.studup.backend.service;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.AccordSummaryResponse;
 import com.studup.backend.model.dto.response.AlternantDashboardResponse;
+import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.entity.Accord;
-import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.entity.User;
 import com.studup.backend.repository.AccordRepository;
-import com.studup.backend.repository.LogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +30,14 @@ public class AlternantDashboardService {
 
     private final UserRepository userRepository;
     private final AccordRepository accordRepository;
-    private final LogementRepository logementRepository;
+    private final MatchingService matchingService;
 
     public AlternantDashboardService(UserRepository userRepository,
                                      AccordRepository accordRepository,
-                                     LogementRepository logementRepository) {
+                                     MatchingService matchingService) {
         this.userRepository = userRepository;
         this.accordRepository = accordRepository;
-        this.logementRepository = logementRepository;
+        this.matchingService = matchingService;
     }
 
     @Transactional(readOnly = true)
@@ -69,14 +68,21 @@ public class AlternantDashboardService {
                 })
                 .toList();
 
-        // 3. Économies estimées : loyer moyen des logements × mois d'échanges terminés
-        List<Accord> termines = accordRepository.findAccordsTerminesEchange(userId);
-        BigDecimal economies = calculerEconomies(userId, termines);
+        // 3. KPIs vivants (APP-120) : nombre de matches et meilleure économie
+        // POSSIBLE. Remplacent « économies réalisées » et « échanges terminés »,
+        // qui comptaient des accords TERMINE jamais atteints → 0 à vie.
+        List<MatchingSuggestionResponse> suggestions = matchingService.getSuggestions(userEmail);
+        BigDecimal economiePossibleMax = suggestions.stream()
+                .map(MatchingSuggestionResponse::economieMensuelle)
+                .filter(e -> e != null)
+                .max(BigDecimal::compareTo)
+                .orElse(BigDecimal.ZERO);
 
-        log.info("Dashboard alternant — userId={} prochains={} enAttente={} economies={}",
-                userId, prochains.size(), enAttente.size(), economies);
+        log.info("Dashboard alternant — userId={} prochains={} enAttente={} matches={}",
+                userId, prochains.size(), enAttente.size(), suggestions.size());
 
-        return new AlternantDashboardResponse(prochains, enAttente, economies, termines.size());
+        return new AlternantDashboardResponse(
+                prochains, enAttente, economiePossibleMax, suggestions.size());
     }
 
     // ─── Méthodes privées ─────────────────────────────────────────────────────
@@ -89,33 +95,5 @@ public class AlternantDashboardService {
                 a.getId(), a.getType(), a.getStatut(),
                 a.getDateDebut(), a.getDateFin(),
                 partnerId, heuresAvantExpiration);
-    }
-
-    private BigDecimal calculerEconomies(UUID userId, List<Accord> termines) {
-        if (termines.isEmpty()) return BigDecimal.ZERO;
-
-        // Loyer moyen des logements de l'utilisateur (source : ses logements publiés)
-        List<Logement> logements = logementRepository.findByOwnerId(userId);
-        if (logements.isEmpty()) return BigDecimal.ZERO;
-
-        BigDecimal loyerMoyen = logements.stream()
-                .filter(l -> l.getLoyer() != null)
-                .map(Logement::getLoyer)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(logements.size()), 2, RoundingMode.HALF_UP);
-
-        if (loyerMoyen.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
-
-        // Pour chaque accord terminé : économie = loyer_moyen × nb_mois
-        BigDecimal total = BigDecimal.ZERO;
-        for (Accord a : termines) {
-            if (a.getDateDebut() != null && a.getDateFin() != null) {
-                long mois = ChronoUnit.MONTHS.between(a.getDateDebut(), a.getDateFin());
-                if (mois > 0) {
-                    total = total.add(loyerMoyen.multiply(BigDecimal.valueOf(mois)));
-                }
-            }
-        }
-        return total.setScale(2, RoundingMode.HALF_UP);
     }
 }

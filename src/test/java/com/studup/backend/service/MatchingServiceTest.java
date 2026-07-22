@@ -126,14 +126,10 @@ class MatchingServiceTest {
                 .thenReturn(List.of());
 
         // candidatProfile : score 1.0 (échange total)
-        MatchingResult resultHaut = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, "message", List.of(), 4, 4, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult resultHaut = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL, "message", List.of(), 4, 4, 0, 0, BigDecimal.ZERO, "résumé");
 
         // candidat2 : score 0.75 (échange partiel)
-        MatchingResult resultBas = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL,
-                false, "message", List.of(), 3, 3, 0, 1,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult resultBas = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL, "message", List.of(), 3, 3, 0, 1, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(eq(myProfile), eq(candidatProfile), any(), any(), any(), any()))
                 .thenReturn(resultHaut);
@@ -178,9 +174,7 @@ class MatchingServiceTest {
         when(logementRepository.findByOwnerId(candidatProfile.getUser().getId()))
                 .thenReturn(List.of(sonLogement));
 
-        MatchingResult echangeTotal = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL,
-                false, null, List.of(), 4, 4, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult echangeTotal = new MatchingResult(1.0, AccordType.ECHANGE_TOTAL, null, List.of(), 4, 4, 0, 0, BigDecimal.ZERO, "résumé");
         when(calculator.calculate(any(), any(), any(), any(), any(), any()))
                 .thenReturn(echangeTotal);
 
@@ -207,10 +201,8 @@ class MatchingServiceTest {
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
         // Match potentiel : isMatchActif=false, messageMatchPotentiel non null
-        MatchingResult matchPotentiel = new MatchingResult(0.8, AccordType.ECHANGE_PARTIEL,
-                false, "Publiez vos logements pour activer ce match",
-                List.of(), 3, 3, 0, 1,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult matchPotentiel = new MatchingResult(0.8, AccordType.ECHANGE_PARTIEL, "Publiez vos logements pour activer ce match",
+                List.of(), 3, 3, 0, 1, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(matchPotentiel);
 
@@ -232,9 +224,7 @@ class MatchingServiceTest {
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
         // typePropose null = aucune compatibilité → doit être exclu
-        MatchingResult sansCompatibilite = new MatchingResult(0.0, null,
-                false, null, List.of(), 0, 0, 0, 0,
-                BigDecimal.ZERO, BigDecimal.ZERO, "Aucune semaine commune");
+        MatchingResult sansCompatibilite = new MatchingResult(0.0, null, null, List.of(), 0, 0, 0, 0, BigDecimal.ZERO, "Aucune semaine commune");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(sansCompatibilite);
 
@@ -265,9 +255,7 @@ class MatchingServiceTest {
                 .thenReturn(List.of(candidatProfile));
         when(scheduleRepository.findByProfileIdOrderBySemaineAsc(any())).thenReturn(List.of());
 
-        MatchingResult result = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL,
-                false, "message", List.of(), 3, 3, 0, 1,
-                BigDecimal.ZERO, BigDecimal.ZERO, "résumé");
+        MatchingResult result = new MatchingResult(0.75, AccordType.ECHANGE_PARTIEL, "message", List.of(), 3, 3, 0, 1, BigDecimal.ZERO, "résumé");
 
         when(calculator.calculate(any(), any(), any(), any(), any(), any())).thenReturn(result);
 

@@ -15,10 +15,4 @@ import java.util.UUID;
 public interface LogementRepository extends JpaRepository<Logement, UUID>, JpaSpecificationExecutor<Logement> {
 
     List<Logement> findByOwnerId(UUID ownerId);
-
-    List<Logement> findByOwnerIdAndStatut(UUID ownerId, LogementStatut statut);
-
-    boolean existsByOwnerIdAndVille(UUID ownerId, String ville);
-
-    Optional<Logement> findByOwnerIdAndVilleAssociee(UUID ownerId, VilleAssociee villeAssociee);
 }

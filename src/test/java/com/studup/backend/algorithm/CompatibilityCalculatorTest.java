@@ -285,31 +285,16 @@ class CompatibilityCalculatorTest {
     // ─── CAS 9 : Match actif vs potentiel ────────────────────────────────────
 
     @Test
-    void shouldDetectMatchActifWhenBothLogementPublished() {
-        // isMatchActif est géré par MatchingService (pas ici)
-        // On vérifie juste que l'algorithme retourne false par défaut
-        List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
-        List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
-
-        MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
-
-        assertThat(result.isMatchActif()).isFalse();
-        assertThat(result.messageMatchPotentiel()).isNotNull();
-    }
-
-    @Test
     void shouldDetectMatchPotentielWhenOneLogementMissing() {
         List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
         List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
 
         MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
 
-        // Sans logements publiés → match potentiel par défaut
-        assertThat(result.isMatchActif()).isFalse();
+        // Le calculateur ne voit pas les logements : il annonce toujours ce
+        // qu'il manque, et c'est MatchingService qui tranche actif/potentiel.
         assertThat(result.messageMatchPotentiel()).contains("logements");
     }
-
-    // ─── Cas mixte échange + coloc (APP-108) ──────────────────────────────────
 
     @Test
     void shouldMakeMixedCaseVisible() {
@@ -409,8 +394,7 @@ class CompatibilityCalculatorTest {
                 logement("Paris", "650"), logement("Lyon", "900"));
 
         assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_PARTIEL);
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("675");
-        assertThat(result.economieEstimeeMin()).isEqualByComparingTo("675");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("675");
     }
 
     @Test
@@ -429,7 +413,7 @@ class CompatibilityCalculatorTest {
                 logement("Paris", "650"), logement("Lyon", "900"));
 
         assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("775");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("775");
     }
 
     @Test
@@ -444,7 +428,7 @@ class CompatibilityCalculatorTest {
                 profileA, profileC, schedulesA, schedulesC,
                 logement("Paris", "650"), null);
 
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("325");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("325");
     }
 
     @Test
@@ -455,8 +439,7 @@ class CompatibilityCalculatorTest {
         // Variante 4 arguments : aucun loyer connu → zéro, jamais de chiffre inventé
         MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
 
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
-        assertThat(result.economieEstimeeMin()).isEqualByComparingTo("0");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("0");
     }
 
     @Test
@@ -470,7 +453,7 @@ class CompatibilityCalculatorTest {
                 profileA, profileB, schedulesA, schedulesB,
                 null, logement("Bordeaux", "900"));
 
-        assertThat(result.economieEstimeeMax()).isEqualByComparingTo("0");
+        assertThat(result.economieMensuelle()).isEqualByComparingTo("0");
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

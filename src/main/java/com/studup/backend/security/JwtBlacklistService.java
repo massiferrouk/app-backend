@@ -45,7 +45,7 @@ public class JwtBlacklistService {
      */
     public void revokeAllForUser(UUID userId) {
         redisTemplate.opsForValue().set(
-                "jwt:revoked:user:" + userId,
+                userRevokedKey(userId),
                 "revoked",
                 Duration.ofHours(24)
         );
@@ -55,6 +55,21 @@ public class JwtBlacklistService {
      * Vérifie si tous les tokens d'un utilisateur sont révoqués.
      */
     public boolean isUserRevoked(UUID userId) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey("jwt:revoked:user:" + userId));
+        return Boolean.TRUE.equals(redisTemplate.hasKey(userRevokedKey(userId)));
+    }
+
+    /**
+     * Lève la révocation en bloc — appelé quand un admin réactive un compte.
+     *
+     * Indispensable : la clé posée par revokeAllForUser vit 24 h. Sans cette
+     * suppression, remettre isActive à true ne suffirait pas et le compte
+     * réactivé resterait refusé par JwtAuthFilter jusqu'à l'expiration.
+     */
+    public void restoreUser(UUID userId) {
+        redisTemplate.delete(userRevokedKey(userId));
+    }
+
+    private String userRevokedKey(UUID userId) {
+        return "jwt:revoked:user:" + userId;
     }
 }

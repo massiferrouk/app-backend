@@ -20,4 +20,9 @@ public interface MessageReportRepository extends JpaRepository<MessageReport, UU
            "(SELECT m.id FROM Message m WHERE m.isHidden = false) " +
            "ORDER BY mr.createdAt DESC")
     Page<MessageReport> findPendingReports(Pageable pageable);
+
+    /** Même critère que findPendingReports, pour le tableau de bord (APP-121). */
+    @Query("SELECT COUNT(mr) FROM MessageReport mr WHERE mr.messageId IN " +
+           "(SELECT m.id FROM Message m WHERE m.isHidden = false)")
+    long countPendingReports();
 }

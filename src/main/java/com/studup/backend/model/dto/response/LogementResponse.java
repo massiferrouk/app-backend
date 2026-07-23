@@ -33,7 +33,11 @@ public record LogementResponse(
         OffsetDateTime createdAt,
         // Prénom du propriétaire — permet au frontend d'afficher son nom
         // (bouton « Contacter ») sans requête supplémentaire (relation déjà chargée).
-        String ownerPrenom
+        String ownerPrenom,
+        // Motif de la suspension par un administrateur (APP-121) — null tant
+        // que l'annonce n'a pas été modérée. Sert à expliquer au propriétaire
+        // pourquoi son annonce n'est plus visible.
+        String moderationNote
 ) {
     public static LogementResponse from(Logement logement, List<String> photoUrls) {
         return new LogementResponse(
@@ -57,7 +61,8 @@ public record LogementResponse(
                 logement.getVilleAssociee(),
                 photoUrls,
                 logement.getCreatedAt(),
-                logement.getOwner().getFirstName()
+                logement.getOwner().getFirstName(),
+                logement.getModerationNote()
         );
     }
 }

@@ -3,10 +3,13 @@ package com.studup.backend.controller;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
 import com.studup.backend.model.dto.request.LogementSearchRequest;
+import com.studup.backend.model.dto.request.ReportLogementRequest;
+import com.studup.backend.model.dto.response.LogementReportResponse;
 import com.studup.backend.model.dto.response.LogementResponse;
 import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.enums.LogementType;
 import com.studup.backend.service.LogementService;
+import com.studup.backend.service.ModerationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,8 +27,11 @@ import java.util.UUID;
 public class LogementController {
 
     private final LogementService logementService;
+    private final ModerationService moderationService;
 
-    public LogementController(LogementService logementService) {
+    public LogementController(LogementService logementService,
+                              ModerationService moderationService) {
+        this.moderationService = moderationService;
         this.logementService = logementService;
     }
 
@@ -125,5 +131,18 @@ public class LogementController {
 
         logementService.deleteLogement(userDetails.getUsername(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Signalement d'une annonce par un utilisateur — alimente la file de
+    // modération admin (APP-121). Sans ce point d'entrée, un administrateur
+    // ne pourrait repérer une annonce frauduleuse qu'en parcourant la liste.
+    @PostMapping("/{id}/report")
+    public ResponseEntity<LogementReportResponse> reportLogement(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReportLogementRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(moderationService.reportLogement(
+                        id, userDetails.getUsername(), request.motif()));
     }
 }

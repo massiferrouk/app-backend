@@ -5,6 +5,7 @@ import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.exception.UnauthorizedException;
 import com.studup.backend.model.dto.request.AssocierVilleRequest;
 import com.studup.backend.model.dto.request.CreateLogementRequest;
+import com.studup.backend.model.dto.response.LogementReportResponse;
 import com.studup.backend.model.dto.response.LogementResponse;
 import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.enums.LogementStatut;
@@ -15,6 +16,7 @@ import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import com.studup.backend.security.SecurityService;
 import com.studup.backend.service.LogementService;
+import com.studup.backend.service.ModerationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -62,6 +64,10 @@ class LogementControllerTest {
     @MockitoBean
     private SecurityService securityService;
 
+    // Dépendance du contrôleur depuis le signalement d'annonce (APP-121)
+    @MockitoBean
+    private ModerationService moderationService;
+
     // Logement de référence réutilisé dans les tests
     private LogementResponse fakeResponse() {
         return new LogementResponse(
@@ -85,7 +91,8 @@ class LogementControllerTest {
                 null,
                 List.of(),
                 OffsetDateTime.now(),
-                "Pierre"
+                "Pierre",
+                null // moderationNote (APP-121)
         );
     }
 
@@ -249,7 +256,8 @@ class LogementControllerTest {
                 id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
-                LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now(), "Pierre"
+                LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now(), "Pierre",
+                null // moderationNote (APP-121)
         );
 
         // @PreAuthorize passe → securityService retourne true
@@ -284,7 +292,8 @@ class LogementControllerTest {
                 id, UUID.randomUUID(), "12 rue de la Paix", "Paris", "75001",
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
-                LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now(), "Pierre"
+                LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now(), "Pierre",
+                null // moderationNote (APP-121)
         );
 
         // @PreAuthorize passe → securityService retourne true
@@ -310,5 +319,41 @@ class LogementControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"villeAssociee\":null}"))
                 .andExpect(status().isBadRequest());
+    }
+    // ─── POST /api/v1/logements/{id}/report (APP-121) ────────────────────────
+
+    @Test
+    @WithMockUser(username = "bob@studup.fr")
+    void shouldReturn201OnReportLogement() throws Exception {
+        when(moderationService.reportLogement(any(), any(), any()))
+                .thenReturn(new LogementReportResponse(
+                        UUID.randomUUID(), UUID.randomUUID(), "Annonce frauduleuse",
+                        OffsetDateTime.now(), null, null, null));
+
+        mockMvc.perform(post("/api/v1/logements/{id}/report", UUID.randomUUID())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\":\"Annonce frauduleuse\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.motif").value("Annonce frauduleuse"));
+    }
+
+    @Test
+    @WithMockUser(username = "bob@studup.fr")
+    void shouldReturn400OnReportSansMotif() throws Exception {
+        mockMvc.perform(post("/api/v1/logements/{id}/report", UUID.randomUUID())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\":\"  \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturn401OnReportWhenNotAuthenticated() throws Exception {
+        mockMvc.perform(post("/api/v1/logements/{id}/report", UUID.randomUUID())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"motif\":\"Motif\"}"))
+                .andExpect(status().isUnauthorized());
     }
 }

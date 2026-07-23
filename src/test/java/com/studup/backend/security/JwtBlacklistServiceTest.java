@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -61,5 +62,16 @@ class JwtBlacklistServiceTest {
         boolean result = jwtBlacklistService.isBlacklisted("abc-123");
 
         assertThat(result).isFalse();
+    }
+
+    @Test
+    void shouldRestoreUserByDeletingRevocationKey() {
+        UUID userId = UUID.randomUUID();
+
+        jwtBlacklistService.restoreUser(userId);
+
+        // La cle de revocation vit 24 h : sans cette suppression, reactiver un
+        // compte ne suffirait pas, JwtAuthFilter continuerait de le refuser.
+        verify(redisTemplate).delete("jwt:revoked:user:" + userId);
     }
 }

@@ -83,6 +83,13 @@ public class Logement {
     @Column(name = "is_verified", nullable = false)
     private Boolean isVerified;
 
+    /**
+     * Motif de la suspension par un administrateur (APP-121).
+     * Null si l'annonce n'a jamais été modérée, ou si elle a été republiée.
+     */
+    @Column(name = "moderation_note", columnDefinition = "TEXT")
+    private String moderationNote;
+
     @Column(name = "is_meuble", nullable = false)
     private Boolean isMeuble;
 

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Repository
@@ -35,4 +36,19 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("isActive") Boolean isActive,
             Pageable pageable
     );
+    // ─── Comptages du tableau de bord admin (APP-121) ────────────────────────
+
+    /**
+     * Répartition des comptes par rôle, en UNE requête.
+     * Un COUNT par rôle en ferait quatre pour la même information.
+     */
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role")
+    List<Object[]> countGroupByRole();
+
+    /** Suspendu = désactivé mais pas supprimé. Le bannissement pose deletedAt. */
+    long countByIsActiveFalseAndDeletedAtIsNull();
+
+    long countByDeletedAtIsNotNull();
+
+    long countByCreatedAtAfter(OffsetDateTime depuis);
 }

@@ -9,7 +9,25 @@ Le détail fin de chaque évolution est traçable dans l'historique Git
 
 ## [Non publié]
 
-_Rien pour l'instant._
+### Corrigé — anomalies relevées en recette
+- Déploiement du stockage objet MinIO en production : la publication d'un logement
+  avec photo échouait, l'API pointant encore sur `localhost:9000` (A-01)
+- La recherche de logements exclut désormais les annonces de l'utilisateur connecté (A-03)
+- Erreur 500 à la modification du rythme ou de la première semaine : `flush()` entre la
+  suppression et la réinsertion des semaines, pour que le DELETE précède les INSERT et
+  ne viole plus la contrainte d'unicité du calendrier (A-05)
+- Un logement n'est plus bloqué indéfiniment après un accord refusé, annulé ou terminé (A-06)
+- Avertissement lors de la modification d'un profil engagé dans un accord en cours (A-07)
+
+### Sécurité
+- **Faille IDOR corrigée** : un utilisateur pouvait associer une ville au logement d'un
+  autre utilisateur. Contrôle de propriété ajouté sur l'endpoint concerné (A-08, OWASP A01)
+
+### Qualité
+- 486 tests automatisés (68 classes : services, controllers, algorithme, sécurité,
+  intégration Testcontainers)
+- Un test de non-régression ajouté pour chacune des anomalies ci-dessus, dont
+  `AlternantProfileUpdateIntegrationTest` qui verrouille le correctif A-05
 
 ## [1.0.0] — 2026-07-18
 

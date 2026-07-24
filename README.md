@@ -425,6 +425,16 @@ avec un PostgreSQL 15 en service. Un push sur `main` déclenche le déploiement 
 qui construit l'image à partir du `Dockerfile` multi-stage (compilation avec le JDK,
 image finale sur le JRE seul).
 
+L'API est déployée et accessible en ligne :
+
+```
+https://app-backend-production-219d.up.railway.app        (préfixe /api/v1)
+https://app-backend-production-219d.up.railway.app/actuator/health/liveness
+```
+
+Pour lancer l'application mobile pointée sur ce backend en ligne plutôt qu'en local,
+voir la section « Tester l'application déployée » du [README racine](../README.md).
+
 La procédure de mise à jour après mise en service — livrer un correctif, faire évoluer
 le schéma, revenir en arrière — est décrite dans
 [docs/manuel-mise-a-jour.md](docs/manuel-mise-a-jour.md).

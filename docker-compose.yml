@@ -1,0 +1,106 @@
+# =====================================================================
+# StudUp — environnement complet en une commande
+# =====================================================================
+#
+#   docker compose up -d --build
+#
+# Démarre PostgreSQL, Redis, MinIO et l'API, avec le jeu de données de
+# démonstration déjà chargé. Rien d'autre à installer que Docker.
+#
+# Pour développer, on ne lance en général que les dépendances et on
+# exécute l'API depuis l'IDE ou Maven :
+#
+#   docker compose up -d postgres redis minio
+#   ./mvnw spring-boot:run
+#
+# Les volumes conservent les données entre deux redémarrages.
+# Pour repartir d'une base vide :  docker compose down -v
+# =====================================================================
+
+name: studup
+
+services:
+
+  # ---- Base de données ----------------------------------------------
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: yunivdb
+      POSTGRES_USER: yuniv
+      POSTGRES_PASSWORD: yuniv123
+    # 5433 côté machine : évite le conflit avec un PostgreSQL déjà
+    # installé localement, qui écoute sur 5432.
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # L'API ne doit pas démarrer avant que la base accepte les
+      # connexions, sinon Flyway échoue au premier lancement.
+      test: ["CMD-SHELL", "pg_isready -U yuniv -d yunivdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---- Cache et révocation des jetons -------------------------------
+  # Obligatoire : le filtre JWT interroge Redis à chaque requête
+  # authentifiée. Sans Redis, l'application démarre mais toute requête
+  # authentifiée échoue.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---- Stockage des photos (API compatible S3) ----------------------
+  # Optionnel : sans lui, seul l'envoi de photos ne fonctionne pas.
+  # Console web d'administration : http://localhost:9001
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # ---- API Spring Boot ----------------------------------------------
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      # À l'intérieur du réseau Docker, les services s'appellent par leur
+      # nom et par leur port interne — d'où 5432 et non 5433 ici.
+      DATABASE_URL: jdbc:postgresql://postgres:5432/yunivdb
+      DATABASE_USERNAME: yuniv
+      DATABASE_PASSWORD: yuniv123
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      # Jeu de données de démonstration (comptes déjà confirmés).
+      # Retirer cette ligne pour démarrer sur une base vide.
+      SPRING_PROFILES_ACTIVE: demo
+      # Secret de développement uniquement. En production il est fourni
+      # par l'hébergeur et n'apparaît jamais dans un fichier versionné.
+      JWT_SECRET: dev-secret-key-change-this-in-production-must-be-256-bits
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:
+  minio-data:

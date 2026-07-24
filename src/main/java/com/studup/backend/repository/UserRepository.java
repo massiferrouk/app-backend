@@ -5,6 +5,7 @@ import com.studup.backend.model.enums.UserRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,7 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
 
     Optional<User> findByEmail(String email);
 
@@ -24,18 +25,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     // Tous les utilisateurs actifs non supprimés — pour le digest hebdomadaire
     List<User> findByIsActiveTrueAndDeletedAtIsNull();
 
-    // Filtre optionnel par rôle et statut actif — null = pas de filtre
-    @Query("""
-            SELECT u FROM User u
-            WHERE (:role IS NULL OR u.role = :role)
-            AND (:isActive IS NULL OR u.isActive = :isActive)
-            ORDER BY u.createdAt DESC
-            """)
-    Page<User> findAllFiltered(
-            @Param("role") UserRole role,
-            @Param("isActive") Boolean isActive,
-            Pageable pageable
-    );
     // ─── Comptages du tableau de bord admin (APP-121) ────────────────────────
 
     /**

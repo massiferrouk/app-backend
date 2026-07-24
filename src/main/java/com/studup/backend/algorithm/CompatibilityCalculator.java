@@ -220,19 +220,66 @@ public class CompatibilityCalculator {
         return base;
     }
 
+    /**
+     * Message de match POTENTIEL : ce qu'il manque pour que l'arrangement
+     * devienne réalisable. Il décrit une situation à débloquer — il n'a donc
+     * aucun sens sur un match déjà actif.
+     *
+     * APP-117 : ce champ était renseigné même quand les deux logements
+     * étaient publiés, c'est-à-dire quand MatchingService marque le match
+     * comme ACTIF. La réponse de l'API se contredisait alors elle-même —
+     * `isMatchActif = true` accompagné de « publiez vos logements
+     * respectifs ». Les conditions ci-dessous sont l'exact miroir de
+     * `MatchingService.isMatchActif` : dès que le match est actif, on renvoie
+     * null.
+     *
+     * Le message nomme aussi lequel des deux logements manque. Auparavant un
+     * message unique disait « publiez vos logements respectifs » y compris
+     * quand l'autre alternant avait déjà publié le sien : l'utilisateur ne
+     * savait pas si l'action lui revenait.
+     *
+     * [logementA] est le logement de l'utilisateur qui consulte, [logementB]
+     * celui du candidat. Les messages s'adressent à A.
+     */
     private String buildMessageMatchPotentiel(AccordType type,
                                               Logement logementA, Logement logementB) {
         if (type == AccordType.ECHANGE_TOTAL || type == AccordType.ECHANGE_PARTIEL) {
-            return "Si vous publiez vos logements respectifs, vous pourrez faire un échange avec cet alternant.";
+            // Les deux logements publiés = échange signable, rien à débloquer.
+            // Leurs villes sont nécessairement différentes : deux logements
+            // dans la même ville ne produisent aucune semaine d'échange réel
+            // (estEchangeReel), donc jamais un type ECHANGE_*.
+            if (logementA != null && logementB != null) {
+                return null;
+            }
+            if (logementA == null && logementB == null) {
+                return "Aucun de vous deux n'a publié de logement. "
+                        + "Publiez le vôtre pour rendre l'échange possible.";
+            }
+            if (logementA == null) {
+                return "Cet alternant a déjà publié son logement. "
+                        + "Publiez le vôtre et l'échange devient possible.";
+            }
+            return "Cet alternant n'a pas encore publié son logement. "
+                    + "L'échange sera possible dès qu'il l'aura fait.";
         }
+
         if (type == AccordType.COLOCATION_TOURNANTE) {
+            // Côté colocation, il suffit que le candidat ait un logement à
+            // partager pour que le match soit actif.
+            if (logementB != null) {
+                return null;
+            }
             // Cas 47 de la grille : personne n'a de logement → « lâcher son
             // logement » n'a pas de sens, on propose d'en trouver un à deux
-            if (logementA == null && logementB == null) {
+            if (logementA == null) {
                 return "Vous avez le même rythme. Trouvez un logement à deux et divisez le loyer.";
             }
-            return "Si l'un de vous lâche son logement, vous pourrez partager les logements et diviser les loyers.";
+            // Seul A est logé : « l'un de vous lâche son logement » ne veut
+            // rien dire, le candidat n'a rien à lâcher.
+            return "Cet alternant n'a pas encore de logement. "
+                    + "Vous pourriez partager le vôtre et diviser le loyer.";
         }
+
         return null;
     }
 

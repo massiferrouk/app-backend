@@ -9,3 +9,14 @@ docs/
 HELP.md
 README.md
 *.md
+
+# Dossier de travail Claude Code — contient des copies completes du depot
+# (worktrees). Sans cette ligne, le contexte de build est enorme et la
+# construction de l'image devient tres lente.
+.claude/
+
+# Secrets et fichiers d'environnement locaux : ils ne doivent jamais se
+# retrouver dans une couche de l'image.
+.env
+.env.*
+docker-compose*.yml

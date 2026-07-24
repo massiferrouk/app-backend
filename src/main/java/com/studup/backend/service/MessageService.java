@@ -34,19 +34,22 @@ public class MessageService {
     private final UserRepository userRepository;
     private final LogementRepository logementRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ModerationService moderationService;
 
     public MessageService(MessageRepository messageRepository,
                           ConversationRepository conversationRepository,
                           ConversationParticipantRepository participantRepository,
                           UserRepository userRepository,
                           LogementRepository logementRepository,
-                          SimpMessagingTemplate messagingTemplate) {
+                          SimpMessagingTemplate messagingTemplate,
+                          ModerationService moderationService) {
         this.messageRepository = messageRepository;
         this.conversationRepository = conversationRepository;
         this.participantRepository = participantRepository;
         this.userRepository = userRepository;
         this.logementRepository = logementRepository;
         this.messagingTemplate = messagingTemplate;
+        this.moderationService = moderationService;
     }
 
     // Crée ou retrouve une conversation entre deux utilisateurs, puis envoie le message
@@ -77,6 +80,14 @@ public class MessageService {
         if (logementId != null) {
             logementRepository.findById(logementId)
                     .orElseThrow(() -> new ResourceNotFoundException("Annonce introuvable"));
+        }
+
+        // Filtrage des mots interdits (APP-121) — AVANT toute persistance :
+        // un message refusé ne doit laisser aucune trace, ni conversation créée.
+        // La liste est administrable sans redéploiement (écran Mots interdits).
+        if (moderationService.containsForbiddenWord(content)) {
+            throw new IllegalStateException(
+                    "Ton message contient un terme interdit sur la plateforme");
         }
 
         // Retrouve la conversation de CETTE annonce, ou en crée une nouvelle

@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +47,7 @@ class MessageServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private LogementRepository logementRepository;
     @Mock private SimpMessagingTemplate messagingTemplate;
+    @Mock private ModerationService moderationService;
 
     @InjectMocks
     private MessageService messageService;
@@ -77,6 +79,26 @@ class MessageServiceTest {
     }
 
     // ─── shouldPersistMessageAndMarkAsUnread ──────────────────────────────────
+
+    // ─── Filtrage des mots interdits (APP-121) ────────────────────────────────
+
+    @Test
+    void shouldRefuserUnMessageContenantUnMotInterdit() {
+        // La liste est administrable sans redéploiement : ce contrôle est le
+        // seul endroit où elle sert. Sans lui, l'écran admin ne fait rien.
+        when(userRepository.findByEmail("alice@studup.fr")).thenReturn(Optional.of(sender));
+        when(userRepository.findById(receiver.getId())).thenReturn(Optional.of(receiver));
+        when(moderationService.containsForbiddenWord(any())).thenReturn(true);
+
+        assertThatThrownBy(() -> messageService.sendMessage(
+                "alice@studup.fr", receiver.getId(), "contenu interdit"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("terme interdit");
+
+        // Rien ne doit être persisté : ni message, ni conversation
+        verify(messageRepository, never()).save(any());
+        verify(conversationRepository, never()).save(any());
+    }
 
     @Test
     void shouldPersistMessageAndMarkAsUnread() {

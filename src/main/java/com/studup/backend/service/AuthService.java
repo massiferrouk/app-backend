@@ -11,6 +11,7 @@ import com.studup.backend.model.dto.response.AuthResponse;
 import com.studup.backend.model.dto.response.UserResponse;
 import com.studup.backend.model.entity.RefreshToken;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
 import com.studup.backend.config.StudUpMetrics;
@@ -51,6 +52,16 @@ public class AuthService {
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
 
+    // Confirme automatiquement les comptes à l'inscription, sans e-mail.
+    // false partout SAUF en profil « demo » (application-demo.properties) :
+    // en local il n'y a pas de clé SendGrid, donc aucun e-mail de confirmation
+    // ne part, et un compte créé à l'inscription resterait bloqué au login
+    // (EmailNotConfirmedException). En démonstration, on veut que le flux
+    // d'inscription soit utilisable de bout en bout. Ne JAMAIS activer en prod :
+    // la confirmation d'e-mail y reste une vraie barrière (US-001).
+    @Value("${app.auto-confirm-accounts:false}")
+    private boolean autoConfirmAccounts;
+
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        PasswordEncoder passwordEncoder,
@@ -77,19 +88,42 @@ public class AuthService {
             throw new DuplicateEmailException("Un compte existe déjà avec cet email");
         }
 
+        // Le rôle vient du client : il ne peut donc JAMAIS être ADMIN.
+        //
+        // Le formulaire d'inscription ne propose pas ce choix, mais un appel
+        // direct à l'API (curl, Postman) contournait l'interface et créait un
+        // compte disposant de tous les droits d'administration. Un contrôle
+        // côté client n'est pas un contrôle de sécurité.
+        //
+        // Les comptes ADMIN sont attribués exclusivement en base, par une
+        // personne ayant déjà accès au serveur.
+        if (request.role() == UserRole.ADMIN) {
+            log.warn("Tentative d'inscription avec le rôle ADMIN — refusée");
+            throw new UnauthorizedException(
+                    "Ce rôle ne peut pas être choisi à l'inscription");
+        }
+
         User user = User.builder()
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .firstName(request.firstName())
                 .lastName(request.lastName())
                 .role(request.role())
-                .isVerified(false)
+                // Confirmé d'emblée en démo, à confirmer par e-mail sinon (prod)
+                .isVerified(autoConfirmAccounts)
                 .isActive(true)
                 .build();
 
         // saveAndFlush garantit que le user est persisté en BDD avant l'INSERT JDBC du token (FK)
         User savedUser = userRepository.saveAndFlush(user);
-        emailConfirmationService.sendConfirmationEmail(savedUser);
+
+        if (autoConfirmAccounts) {
+            // Mode démonstration : le compte est déjà vérifié, on n'envoie
+            // aucun e-mail (il n'y a de toute façon pas de clé SendGrid).
+            log.info("Compte auto-confirmé (profil demo) : userId={}", savedUser.getId());
+        } else {
+            emailConfirmationService.sendConfirmationEmail(savedUser);
+        }
 
         metrics.incrementInscriptionsDaily();
         log.info("New user registered: userId={}", savedUser.getId());

@@ -37,3 +37,16 @@ CLAUDE.md
 # Dossier de travail Claude Code
 .claude/
 mvn_*.log
+
+### Secrets — ne doivent JAMAIS être versionnés ###
+# Seul .env.example, qui ne contient que des valeurs de développement, est suivi.
+.env
+.env.*
+!.env.example
+application-local.properties
+application-secret.properties
+src/main/resources/firebase-service-account.json
+*.key
+*.pem
+*.p12
+*.jks

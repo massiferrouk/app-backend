@@ -13,11 +13,13 @@ import com.studup.backend.repository.MessageReportRepository;
 import com.studup.backend.repository.MotInterditRepository;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
+import com.studup.backend.repository.UserSpecification;
 import com.studup.backend.security.JwtBlacklistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -104,10 +106,23 @@ public class AdminService {
         return resultat;
     }
 
+    /**
+     * Liste filtrable des comptes.
+     *
+     * Les filtres absents n'ajoutent aucune clause — voir UserSpecification
+     * pour la raison : la version en @Query échouait contre PostgreSQL sur le
+     * typage des paramètres d'ENUM natif.
+     */
     @Transactional(readOnly = true)
     public Page<AdminUserResponse> listUsers(UserRole role, Boolean isActive, Pageable pageable) {
-        return userRepository.findAllFiltered(role, isActive, pageable)
-                .map(AdminUserResponse::from);
+        Specification<User> filtres = Specification.allOf();
+        if (role != null) {
+            filtres = filtres.and(UserSpecification.roleEgale(role));
+        }
+        if (isActive != null) {
+            filtres = filtres.and(UserSpecification.estActif(isActive));
+        }
+        return userRepository.findAll(filtres, pageable).map(AdminUserResponse::from);
     }
 
     @Transactional

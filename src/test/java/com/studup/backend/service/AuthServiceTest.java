@@ -18,6 +18,7 @@ import com.studup.backend.security.JwtBlacklistService;
 import com.studup.backend.security.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,6 +26,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -94,9 +96,45 @@ class AuthServiceTest {
         assertThat(response.role()).isEqualTo(UserRole.ALTERNANT);
         assertThat(response.isVerified()).isFalse();
 
+        // Comportement par défaut (prod) : le compte n'est pas confirmé et
+        // l'e-mail de confirmation est envoyé.
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(userCaptor.capture());
+        assertThat(userCaptor.getValue().getIsVerified()).isFalse();
+
         verify(passwordEncoder).encode("motdepasse123");
         verify(emailConfirmationService).sendConfirmationEmail(any(User.class));
-        verify(userRepository).saveAndFlush(any(User.class));
+    }
+
+    // APP-117 : en profil « demo » (app.auto-confirm-accounts=true), un compte
+    // créé à l'inscription est confirmé sans e-mail — sinon il resterait bloqué
+    // au login, aucune clé SendGrid n'étant configurée en local. Le flux
+    // d'inscription est ainsi démontrable de bout en bout devant le jury.
+    @Test
+    void shouldAutoConfirmAccountWhenFlagEnabled() {
+        ReflectionTestUtils.setField(authService, "autoConfirmAccounts", true);
+
+        RegisterRequest request = new RegisterRequest(
+                "bob@studup.demo",
+                "motdepasse123",
+                "Bob",
+                "Durand",
+                UserRole.ALTERNANT
+        );
+
+        when(userRepository.existsByEmail("bob@studup.demo")).thenReturn(false);
+        when(passwordEncoder.encode("motdepasse123")).thenReturn("$2a$10$hashedpassword");
+        when(userRepository.saveAndFlush(any(User.class))).thenReturn(buildUser("bob@studup.demo"));
+
+        authService.register(request);
+
+        // Le compte persisté est déjà vérifié
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).saveAndFlush(userCaptor.capture());
+        assertThat(userCaptor.getValue().getIsVerified()).isTrue();
+
+        // Et aucun e-mail de confirmation n'est envoyé
+        verify(emailConfirmationService, never()).sendConfirmationEmail(any());
     }
 
     @Test
@@ -182,6 +220,20 @@ class AuthServiceTest {
     }
 
     // ─── Tests renouvellement ─────────────────────────────────────────────────
+
+    @Test
+    void shouldRefuserUneInscriptionAvecLeRoleAdmin() {
+        // Escalade de privilèges : le formulaire ne propose pas ADMIN, mais un
+        // appel direct à l'API contournait l'interface et créait un compte
+        // avec tous les droits d'administration (APP-121).
+        RegisterRequest request = new RegisterRequest(
+                "pirate@studup.fr", "Password123!", "Pi", "Rate", UserRole.ADMIN);
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(UnauthorizedException.class);
+
+        verify(userRepository, never()).saveAndFlush(any());
+    }
 
     @Test
     void shouldRejectRefreshWhenAccountSuspended() {

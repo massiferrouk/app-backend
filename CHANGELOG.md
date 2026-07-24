@@ -18,16 +18,30 @@ Le détail fin de chaque évolution est traçable dans l'historique Git
   ne viole plus la contrainte d'unicité du calendrier (A-05)
 - Un logement n'est plus bloqué indéfiniment après un accord refusé, annulé ou terminé (A-06)
 - Avertissement lors de la modification d'un profil engagé dans un accord en cours (A-07)
+- Le message de match potentiel ne contredit plus l'état du match : il n'est plus
+  renvoyé quand les deux logements sont publiés (match actif), et il nomme désormais
+  lequel des deux logements manque au lieu d'un « publiez vos logements respectifs »
+  générique adressé aussi à qui avait déjà publié (A-09)
+
+### Ajouté
+- Lancement de l'environnement complet (PostgreSQL, Redis, MinIO, API) en une commande
+  via `docker-compose.yml`, avec jeu de données de démonstration (profil `demo`) et
+  comptes déjà confirmés : le projet est utilisable sans configuration ni compte à créer
+- Drapeau `app.auto-confirm-accounts` (activé par le seul profil `demo`) : un compte créé
+  à l'inscription est confirmé sans e-mail, ce qui rend le flux d'inscription démontrable
+  en local — où aucune clé SendGrid n'est configurée. En production, il reste à `false` et
+  la confirmation par e-mail garde son rôle de barrière (US-001)
 
 ### Sécurité
 - **Faille IDOR corrigée** : un utilisateur pouvait associer une ville au logement d'un
   autre utilisateur. Contrôle de propriété ajouté sur l'endpoint concerné (A-08, OWASP A01)
 
 ### Qualité
-- 486 tests automatisés (68 classes : services, controllers, algorithme, sécurité,
+- 534 tests automatisés (68 classes : services, controllers, algorithme, sécurité,
   intégration Testcontainers)
 - Un test de non-régression ajouté pour chacune des anomalies ci-dessus, dont
-  `AlternantProfileUpdateIntegrationTest` qui verrouille le correctif A-05
+  `AlternantProfileUpdateIntegrationTest` qui verrouille le correctif A-05 et
+  `shouldNotReturnMessagePotentielWhenBothLogementsPublished` qui verrouille A-09
 
 ## [1.0.0] — 2026-07-18
 
@@ -67,8 +81,8 @@ Première version complète et fonctionnelle de l'API.
 - Avis, score de réputation, modération (US-030, US-031, US-032)
 
 ### Qualité
-- 429 tests automatisés (unitaires, controller, intégration Testcontainers)
-- Couverture JaCoCo 85 % (99 % sur le moteur de matching)
+- 534 tests automatisés (68 classes : unitaires, controller, intégration Testcontainers)
+- Couverture JaCoCo : 86 % des lignes / 83 % des instructions (99 % sur le moteur de matching)
 - Pipeline CI GitHub Actions : build + tests sur chaque push et PR
 
 [Non publié]: https://github.com/massiferrouk/app-backend/compare/v1.0.0...HEAD

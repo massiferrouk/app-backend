@@ -24,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -77,7 +78,8 @@ class AdminServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<User> page = new PageImpl<>(List.of(alternantUser), pageable, 1);
 
-        when(userRepository.findAllFiltered(null, null, pageable)).thenReturn(page);
+        when(userRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(page);
 
         Page<AdminUserResponse> result = adminService.listUsers(null, null, pageable);
 
@@ -90,7 +92,7 @@ class AdminServiceTest {
         Pageable pageable = PageRequest.of(0, 20);
         Page<User> page = new PageImpl<>(List.of(alternantUser), pageable, 1);
 
-        when(userRepository.findAllFiltered(eq(UserRole.ALTERNANT), any(), eq(pageable)))
+        when(userRepository.findAll(any(Specification.class), eq(pageable)))
                 .thenReturn(page);
 
         Page<AdminUserResponse> result = adminService.listUsers(UserRole.ALTERNANT, null, pageable);

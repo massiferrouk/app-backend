@@ -289,11 +289,52 @@ class CompatibilityCalculatorTest {
         List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
         List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
 
+        // Variante sans logements : aucun des deux n'a publié
         MatchingResult result = calculator.calculate(profileA, profileB, schedulesA, schedulesB);
 
-        // Le calculateur ne voit pas les logements : il annonce toujours ce
-        // qu'il manque, et c'est MatchingService qui tranche actif/potentiel.
-        assertThat(result.messageMatchPotentiel()).contains("logements");
+        assertThat(result.messageMatchPotentiel())
+                .contains("Aucun de vous deux")
+                .contains("logement");
+    }
+
+    // APP-117 : le message de match potentiel décrit ce qu'il MANQUE. Quand
+    // les deux logements sont publiés, MatchingService marque le match comme
+    // actif — la réponse ne doit plus porter en même temps un message qui
+    // demande de publier.
+    @Test
+    void shouldNotReturnMessagePotentielWhenBothLogementsPublished() {
+        List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
+        List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
+
+        // A est à Lyon, B est à Paris : chacun dans la ville du logement de
+        // l'autre → échange réel, match actif
+        MatchingResult result = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB,
+                logement("Paris", "650"), logement("Lyon", "900"));
+
+        assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
+        assertThat(result.messageMatchPotentiel()).isNull();
+    }
+
+    // APP-117 : le message doit dire à qui revient l'action. Auparavant, un
+    // message unique demandait de « publier vos logements respectifs » même
+    // quand l'autre alternant avait déjà publié le sien.
+    @Test
+    void shouldNameWhichLogementIsMissing() {
+        List<AlternanceSchedule> schedulesA = List.of(schedule(profileA, SEMAINE_1, "B"));
+        List<AlternanceSchedule> schedulesB = List.of(schedule(profileB, SEMAINE_1, "B"));
+
+        // Seul le candidat a publié → c'est à l'utilisateur d'agir
+        MatchingResult manqueLeMien = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB, null, logement("Lyon", "900"));
+        assertThat(manqueLeMien.messageMatchPotentiel())
+                .contains("Publiez le vôtre");
+
+        // Seul l'utilisateur a publié → il n'a rien à faire, il attend
+        MatchingResult manqueLeSien = calculator.calculate(profileA, profileB,
+                schedulesA, schedulesB, logement("Paris", "650"), null);
+        assertThat(manqueLeSien.messageMatchPotentiel())
+                .contains("Cet alternant n'a pas encore publié son logement");
     }
 
     @Test

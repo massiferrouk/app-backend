@@ -66,7 +66,8 @@ class MessageControllerTest {
                 UUID.randomUUID(),
                 "Bonjour !",
                 false,
-                OffsetDateTime.now()
+                OffsetDateTime.now(),
+                false
         );
     }
 
@@ -164,7 +165,7 @@ class MessageControllerTest {
         UUID messageId = UUID.randomUUID();
         MessageResponse response = new MessageResponse(
                 messageId, UUID.randomUUID(), UUID.randomUUID(),
-                "Bonjour !", true, OffsetDateTime.now());
+                "Bonjour !", true, OffsetDateTime.now(), false);
 
         when(messageService.markAsRead(eq("bob@studup.fr"), eq(messageId)))
                 .thenReturn(response);

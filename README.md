@@ -8,7 +8,207 @@ deux loyers pour des logements qu'ils occupent à moitié. StudUp met en relatio
 alternants dont les rythmes se complètent, pour qu'ils échangent leurs logements ou en
 partagent un seul.
 
-Ce dépôt contient le backend. L'application mobile Flutter est dans un dépôt séparé.
+Ce dépôt contient le backend. L'application mobile Flutter est dans un dépôt séparé :
+[app-frontend](https://github.com/massiferrouk/app-frontend).
+
+---
+
+## Démarrage rapide
+
+> **Objectif : une API qui tourne avec des données dedans, en une commande.**
+> Rien à installer à part Docker. Ni Java, ni Maven, ni PostgreSQL.
+
+### Prérequis — un seul
+
+**Docker Desktop**, installé et **lancé** (l'icône baleine doit être visible dans la
+barre des tâches). Téléchargement : <https://www.docker.com/products/docker-desktop/>
+
+Pour vérifier qu'il répond :
+
+```bash
+docker info
+```
+
+Si la commande affiche des informations, tout est prêt. Si elle affiche
+`error during connect`, c'est que Docker Desktop n'est pas démarré.
+
+### Lancer
+
+Depuis ce dossier (celui qui contient `docker-compose.yml`) :
+
+```bash
+docker compose up -d --build
+```
+
+**La première exécution est longue : comptez 10 à 25 minutes selon la connexion.**
+Docker télécharge les images, puis compile l'API en récupérant toutes ses dépendances
+Maven. C'est normal, il faut laisser tourner — la commande rend la main quand tout est
+prêt. Les lancements suivants prennent quelques secondes, tout étant mis en cache.
+
+Pour suivre la progression pendant ce temps : `docker compose logs -f`.
+
+Quatre conteneurs démarrent : la base PostgreSQL, Redis, MinIO et l'API. Les migrations
+de schéma et le jeu de données de démonstration sont appliqués automatiquement.
+
+### Vérifier que ça marche
+
+```bash
+curl http://localhost:8080/actuator/health/liveness
+```
+
+Réponse attendue :
+
+```json
+{"status":"UP"}
+```
+
+Puis une vraie connexion, avec un compte de démonstration. Sous **macOS, Linux ou Git
+Bash** :
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d '{"email":"alternant1@studup.demo","password":"Demo1234!"}'
+```
+
+Sous **PowerShell**, les guillemets se comportent différemment — utiliser cette forme :
+
+```bash
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/auth/login -ContentType 'application/json' -Body '{"email":"alternant1@studup.demo","password":"Demo1234!"}'
+```
+
+La réponse contient `accessToken` et `refreshToken` : l'API est opérationnelle, la base
+est peuplée, et l'authentification fonctionne.
+
+Pour suivre le démarrage en direct : `docker compose logs -f api`.
+
+### Arrêter
+
+```bash
+docker compose down
+```
+
+Les données sont conservées. Pour repartir d'une base totalement vide :
+`docker compose down -v`.
+
+---
+
+## Comptes de démonstration
+
+Ces comptes sont créés par le profil `demo`, actif par défaut dans `docker-compose.yml`.
+Ils sont **déjà confirmés** : on se connecte directement, sans passer par l'e-mail de
+confirmation.
+
+**Mot de passe commun à tous les comptes : `Demo1234!`**
+
+| E-mail | Rôle | Ce qu'il permet de voir |
+|---|---|---|
+| `alternant1@studup.demo` | Alternant | Ludovic — école à Lyon, entreprise à Paris, rythme 3/1. Possède un studio à Lyon. C'est le compte à utiliser en premier. |
+| `alternant2@studup.demo` | Alternant | Inès — situation exactement inverse : école à Paris, entreprise à Lyon. Possède un T1 à Paris. **C'est le match de Ludovic.** |
+| `alternant3@studup.demo` | Alternant | Karim — même rythme et mêmes villes que Ludovic, mais **sans logement publié** : illustre le « match potentiel » et la colocation. |
+| `etudiant@studup.demo` | Étudiant | Léa — recherche de logements et suivi de candidatures. |
+| `proprietaire@studup.demo` | Propriétaire | Marc — deux annonces publiées, une à Lyon et une à Paris. |
+| `admin@studup.demo` | Admin | Modération des messages et des annonces. |
+
+### Le scénario à suivre
+
+Ludovic possède un studio à **Lyon**, sa ville d'école, mais passe **trois semaines sur
+quatre à Paris**, en entreprise. Inès est dans la situation miroir : elle possède un T1
+à **Paris** et passe trois semaines sur quatre à **Lyon**.
+
+Chacun paie donc un loyer pour un logement qu'il n'occupe qu'une semaine sur quatre,
+tout en cherchant à se loger dans la ville de l'autre. L'algorithme compare leurs deux
+calendriers semaine par semaine et détecte que **trois semaines sur quatre sont
+échangeables** — un score de 75 %, un échange partiel, et une économie chiffrée à partir
+des loyers réellement déclarés.
+
+La quatrième semaine, chacun est chez soi : l'algorithme ne la compte pas comme un
+échange. C'est le principe tenu partout dans le projet — **ne jamais annoncer un gain
+qui n'existe pas**.
+
+À voir en priorité une fois connecté avec Ludovic :
+
+1. **Mon calendrier** — les 52 semaines générées automatiquement à la création du profil.
+2. **Matches** — Inès en match actif (les deux logements sont publiés), Karim en match
+   potentiel.
+3. **Le calendrier de compatibilité avec Inès** — les deux calendriers côte à côte,
+   semaine par semaine, avec le code couleur et le score.
+4. **Messages** — une conversation déjà entamée avec Inès. En ouvrant une seconde
+   session sur le compte d'Inès, on voit les messages arriver en temps réel.
+
+### Et si je veux tester la création de compte ?
+
+C'est prévu. En profil `demo`, un compte créé depuis l'écran d'inscription est
+**confirmé automatiquement** : on peut se connecter juste après, sans e-mail.
+
+Ce n'est pas le comportement de production. Normalement, l'inscription envoie un e-mail
+de confirmation, et la connexion reste refusée tant qu'on n'a pas cliqué le lien. Or
+**aucun e-mail ne peut partir sur une machine locale** : l'envoi passe par un service
+tiers (SendGrid) dont la clé est un secret de production, absent d'un poste de
+développement — c'est un choix de sécurité standard, non une limite du projet. Sans
+adaptation, un compte auto-créé resterait donc bloqué à la connexion.
+
+Le drapeau `app.auto-confirm-accounts`, activé **uniquement** par le profil `demo`
+(`application-demo.properties`), lève cette barrière le temps de la démonstration. En
+production, il reste à `false` et la confirmation par e-mail garde toute sa valeur.
+
+---
+
+## Lancer pour développer
+
+Le mode « tout en Docker » ci-dessus reconstruit l'image à chaque modification du code.
+Pour développer, on ne lance que les dépendances dans Docker et on exécute l'API
+directement.
+
+**Prérequis** : Docker, et **Java 21** (`java -version` doit afficher `21`).
+Maven n'est pas nécessaire — le dépôt contient son propre lanceur (`mvnw`).
+
+```bash
+# Les trois dépendances, sans l'API
+docker compose up -d postgres redis minio
+
+# L'API, avec le jeu de démonstration
+./mvnw spring-boot:run -Dspring-boot.run.profiles=demo
+```
+
+Sous Windows, en PowerShell ou `cmd`, le lanceur s'appelle `mvnw.cmd` :
+
+```bash
+mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=demo
+```
+
+Sans `-Dspring-boot.run.profiles=demo`, l'API démarre sur une base vide, sans compte.
+
+L'API écoute sur `http://localhost:8080`, préfixe `/api/v1`.
+
+**Redis est obligatoire**, même en développement : le filtre JWT interroge la blacklist
+et la liste des comptes révoqués à *chaque* requête authentifiée. Sans lui, l'application
+démarre mais toute requête authentifiée échoue.
+
+MinIO est optionnel : sans lui, seul l'envoi de photos ne fonctionne pas.
+
+---
+
+## En cas de problème
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `docker : command not found` ou `error during connect` | Docker Desktop n'est pas installé ou pas lancé | Ouvrir Docker Desktop et attendre que l'icône se stabilise |
+| `Bind for 0.0.0.0:8080 failed: port is already allocated` | Un autre programme occupe le port 8080 | `docker compose down`, puis vérifier : `netstat -ano \| findstr :8080` (Windows) ou `lsof -i :8080` (macOS/Linux) |
+| Même erreur sur 5433, 6379 ou 9000 | Un PostgreSQL, Redis ou MinIO tourne déjà sur la machine | L'arrêter, ou modifier la partie gauche du port dans `docker-compose.yml` (par exemple `5434:5432`) |
+| `docker compose` inconnu, mais `docker-compose` fonctionne | Version ancienne de Docker | Utiliser `docker-compose up -d --build` (avec le tiret) |
+| L'API redémarre en boucle | La base n'était pas prête, ou une migration a échoué | `docker compose logs api` pour lire l'erreur. En dernier recours : `docker compose down -v && docker compose up -d --build` (efface les données) |
+| `Validate failed : migration checksum mismatch` | Base créée par une version antérieure du schéma | `docker compose down -v` puis relancer : la base est recréée de zéro |
+| `401` sur **toutes** les requêtes authentifiées | Redis n'est pas joignable | Vérifier que le conteneur Redis tourne : `docker compose ps` |
+| `401` avec le code `EMAIL_NOT_CONFIRMED` | Compte créé par inscription **sans** le profil `demo` : l'e-mail de confirmation ne part pas en local, le compte reste non confirmé | Lancer l'API avec le profil `demo` (cas par défaut de `docker compose`) — l'inscription y confirme automatiquement. Sinon, confirmer à la main : `UPDATE users SET is_verified = true WHERE email = '…';` |
+| `429 Too Many Requests` sur `/auth/login` | Limitation à 5 tentatives par minute et par IP | Attendre une minute — c'est le comportement attendu |
+| `./mvnw : command not found` sous Windows | `./mvnw` est la forme Unix | Utiliser `mvnw.cmd` |
+| `UnsupportedClassVersionError` au build | Java antérieur à 21 | Installer un JDK 21 (Temurin) et vérifier `java -version` |
+| Les photos ne s'affichent pas en mode tout-Docker | Les URL signées par MinIO pointent vers `http://minio:9000`, un nom qui n'existe que dans le réseau Docker | Sans conséquence pour la démonstration (aucune photo dans le jeu de données). Pour tester l'envoi de photos, lancer l'API depuis la machine (`./mvnw spring-boot:run`) plutôt que dans Docker |
+
+Pour inspecter la base directement :
+
+```bash
+docker compose exec postgres psql -U yuniv -d yunivdb
+```
 
 ---
 
@@ -89,22 +289,23 @@ semaine** sur leur période commune, et classe chaque semaine :
 
 | Situation | Résultat |
 |---|---|
-| Chacun est dans la ville de l'autre | **Échange** — les logements sont libres exactement quand l'autre en a besoin |
-| Les deux sont dans la même ville, de façon récurrente | **Colocation** — un seul logement partagé, loyer divisé |
-| Les deux sont dans la même ville, ponctuellement | **Chevauchement** — à eux de s'organiser |
-| Aucune synergie cette semaine | **Neutre** |
+| Chacun passe la semaine dans la ville où l'autre a un logement publié | **Échange** — les logements sont libres exactement quand l'autre en a besoin |
+| Les deux sont dans la même ville | **Colocation** — un seul logement partagé, loyer divisé |
+| Chacun est chez soi, ou aucune synergie | **Neutre** — rien n'est promis |
 
-Le score est le rapport des semaines exploitables sur la période commune, et détermine
-le type proposé : échange total, échange partiel, ou colocation tournante.
+Le score est le rapport des semaines exploitables — échange ou colocation — sur la
+période commune. Le type proposé découle du décompte des semaines : échange total si
+toutes les semaines sont échangeables, échange partiel dès qu'il y en a au moins une,
+colocation tournante s'il n'y a que de la colocation.
 
 Deux principes de conception :
 
-- **L'algorithme n'invente rien.** Une économie n'est chiffrée que si les loyers
-  concernés sont réellement connus. Sinon, l'app dit ce qu'il manque plutôt que
-  d'afficher un montant rassurant mais faux.
+- **L'algorithme n'invente rien.** Une semaine n'est comptée comme un échange que si les
+  deux logements sont réellement publiés, dans les bonnes villes. Une économie n'est
+  chiffrée que si les loyers concernés sont connus. Sinon, l'app dit ce qu'il manque
+  plutôt que d'afficher un montant rassurant mais faux.
 - **L'algorithme n'a pas le dernier mot.** Il analyse et affiche ; les deux personnes
-  décident. Il ne connaît que les calendriers — savoir si les logements nécessaires
-  sont publiés est le travail de `MatchingService`, pas du calculateur.
+  décident.
 
 Fichiers concernés : `algorithm/CompatibilityCalculator`, `ScheduleGenerator`,
 `ColocationMatcher`, `PartialExchangeOptimizer`, `ScenarioAdvisor`.
@@ -132,37 +333,16 @@ Les points structurants :
 - **Aucune donnée personnelle dans les logs** — on trace des identifiants, jamais des
   e-mails ni des noms.
 - **Aucun secret dans le dépôt** : tout est en variable d'environnement, avec des valeurs
-  par défaut valables uniquement en développement local.
+  par défaut valables uniquement en développement local. Le modèle est dans
+  [.env.example](.env.example).
 
 ---
 
-## Démarrer en local
+## Variables d'environnement
 
-**Prérequis** : Java 21, Docker.
-
-```bash
-# Base de données (le conteneur porte l'ancien nom du projet)
-docker run --name yuniv-postgres \
-  -e POSTGRES_DB=yunivdb -e POSTGRES_USER=yuniv -e POSTGRES_PASSWORD=yuniv123 \
-  -p 5433:5432 -d postgres:15
-
-# API — Flyway applique les migrations au démarrage
-./mvnw spring-boot:run
-```
-
-L'API écoute sur `http://localhost:8080`, préfixe `/api/v1`.
-
-Redis et MinIO sont optionnels en développement : sans eux, la révocation de tokens et
-l'upload de photos ne fonctionnent pas, le reste tourne normalement.
-
-```bash
-docker run --name studup-redis -p 6379:6379 -d redis:7
-docker run --name studup-minio -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-  -d minio/minio server /data --console-address ":9001"
-```
-
-### Variables d'environnement
+Aucune n'est requise en local : chacune a une valeur par défaut de développement dans
+`application.properties`. Le fichier [.env.example](.env.example) sert de référence pour
+un déploiement.
 
 | Variable | Défaut (dev) | Rôle |
 |---|---|---|
@@ -171,11 +351,19 @@ docker run --name studup-minio -p 9000:9000 -p 9001:9001 \
 | `JWT_SECRET` | valeur de développement | **À remplacer en production** (256 bits minimum) |
 | `JWT_EXPIRATION_MS` | `900000` | Durée de l'access token (15 min) |
 | `JWT_REFRESH_EXPIRATION_MS` | `604800000` | Durée du refresh token (7 jours) |
-| `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Cache et révocation |
-| `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `localhost:9000` / `minioadmin` | Stockage des fichiers |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | `localhost` / `6379` / vide | Cache et révocation |
+| `MINIO_ENDPOINT` / `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `http://localhost:9000` / `minioadmin` | Stockage des fichiers |
 | `CORS_ALLOWED_ORIGINS` | `*` | **À restreindre en production** |
-| `SMTP_PASSWORD` / `FROM_EMAIL` | vide / `noreply@studup.fr` | Envoi d'e-mails |
+| `SMTP_PASSWORD` / `FROM_EMAIL` | vide / `noreply@studup.fr` | Clé d'API SendGrid et expéditeur. Vide = envoi désactivé, sans erreur |
 | `APP_BASE_URL` | `http://localhost:8080` | Liens dans les e-mails |
+| `PORT` | `8080` | Port d'écoute (injecté par l'hébergeur) |
+
+### Profils Spring
+
+| Profil | Effet |
+|---|---|
+| *(aucun)* | Schéma seul, base vide. C'est le mode de production. |
+| `demo` | Ajoute le jeu de données de démonstration (`db/demo`). Aucun changement de schéma. |
 
 ---
 
@@ -185,30 +373,48 @@ docker run --name studup-minio -p 9000:9000 -p 9001:9001 \
 ./mvnw test
 ```
 
-La suite complète est exécutée sur chaque pull request. La convention est de deux
-couches systématiques par fonctionnalité :
+**Docker doit tourner** : les tests d'intégration démarrent eux-mêmes un PostgreSQL et
+un Redis jetables via Testcontainers. Rien d'autre à installer ni à configurer — les
+conteneurs sont créés, utilisés puis détruits automatiquement. Le reste de la suite ne
+dépend de rien.
+
+La convention est de deux couches systématiques par fonctionnalité :
 
 - `XxxServiceTest` — logique métier, contrôles de propriété, cas d'erreur (Mockito) ;
 - `XxxControllerTest` — codes HTTP, JSON, `401` sans authentification, `400` en cas de
   validation invalide (MockMvc, `@WebMvcTest`).
 
-S'y ajoutent les tests d'algorithme, qui rejouent des grilles de cas complètes : tous
-les rythmes, croisés avec toutes les combinaisons de villes et de première semaine.
+S'y ajoutent :
 
-Un test de démarrage du contexte Spring complet existe mais reste désactivé : il exige
-Redis et MinIO. Le passer sous Testcontainers est la prochaine étape prévue.
+- les tests d'algorithme, qui rejouent des grilles de cas complètes — tous les rythmes,
+  croisés avec toutes les combinaisons de villes et de première semaine ;
+- quatre tests d'intégration sur Testcontainers (`src/test/.../integration/`), qui
+  couvrent l'authentification de bout en bout, la mise à jour d'un profil d'alternance
+  et les notifications de match.
+
+Un seul test reste désactivé : `BackendApplicationTests`, qui charge le contexte Spring
+complet et exige en plus MinIO. Le passer sous Testcontainers est la prochaine étape
+prévue (US-049).
+
+La suite complète est exécutée sur chaque pull request par GitHub Actions ; une pull
+request rouge n'est jamais fusionnée.
 
 ---
 
 ## Base de données
 
-Les migrations Flyway sont appliquées automatiquement au démarrage. Deux contraintes
-apprises en cours de route et valables pour toute nouvelle migration :
+Les migrations Flyway sont appliquées automatiquement au démarrage, depuis
+`src/main/resources/db/migration`. Deux contraintes apprises en cours de route et
+valables pour toute nouvelle migration :
 
 - `spring.flyway.execute-in-transaction=false` est **obligatoire** : PostgreSQL exige
   qu'un `ALTER TYPE ... ADD VALUE` soit commité avant d'être utilisé.
 - Les types ENUM natifs PostgreSQL imposent un `CAST(? AS mon_type)` dans les requêtes
   natives — sinon Hibernate envoie un `varchar` et la requête échoue silencieusement.
+
+Le jeu de démonstration vit à part, dans `src/main/resources/db/demo`. C'est une
+migration *repeatable* et idempotente : identifiants figés, `ON CONFLICT DO NOTHING`.
+La rejouer ne duplique rien.
 
 ---
 
@@ -218,6 +424,20 @@ apprises en cours de route et valables pour toute nouvelle migration :
 avec un PostgreSQL 15 en service. Un push sur `main` déclenche le déploiement Railway,
 qui construit l'image à partir du `Dockerfile` multi-stage (compilation avec le JDK,
 image finale sur le JRE seul).
+
+L'API est déployée et accessible en ligne :
+
+```
+https://app-backend-production-219d.up.railway.app        (préfixe /api/v1)
+https://app-backend-production-219d.up.railway.app/actuator/health/liveness
+```
+
+Pour lancer l'application mobile pointée sur ce backend en ligne plutôt qu'en local,
+voir la section « Tester l'application déployée » du [README racine](../README.md).
+
+La procédure de mise à jour après mise en service — livrer un correctif, faire évoluer
+le schéma, revenir en arrière — est décrite dans
+[docs/manuel-mise-a-jour.md](docs/manuel-mise-a-jour.md).
 
 ---
 

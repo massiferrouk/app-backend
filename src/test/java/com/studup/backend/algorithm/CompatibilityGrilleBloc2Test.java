@@ -228,8 +228,10 @@ class CompatibilityGrilleBloc2Test {
         // Positions jamais croisées → zéro échange, même potentiel
         assertThat(result.nbSemainesEchangePotentiel()).isZero();
         assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
-        // Le message parle de coloc, pas d'échange
-        assertThat(result.messageMatchPotentiel()).doesNotContain("échange");
+        // APP-117 : Félix a un logement à partager, la coloc est donc déjà
+        // signable (MatchingService.isMatchActif) — plus de message de match
+        // potentiel, et surtout aucune promesse d'échange.
+        assertThat(result.messageMatchPotentiel()).isNull();
 
         // Et surtout : aucun CTA « publie ton logement pour un échange »
         List<Scenario> scenarios = scenarios(result, null, logementFelix);
@@ -283,6 +285,24 @@ class CompatibilityGrilleBloc2Test {
         // Personne n'a de logement : le message ne dit pas « lâche ton
         // logement » mais « trouvez un logement à deux »
         assertThat(result.messageMatchPotentiel()).contains("Trouvez un logement à deux");
+    }
+
+    // ─── Cas 47 bis (APP-117) : L1 / L0, mêmes villes ────────────────────────
+
+    @Test
+    void cas47bis_memesVillesSeulMoiLoge_messageNeDitPasDeLacherSonLogement() {
+        felix = profil("Bordeaux", "Paris"); // mêmes villes
+        Logement logementMassi = logement("Bordeaux", "650");
+
+        MatchingResult result = calculer(logementMassi, null);
+
+        assertThat(result.typePropose()).isEqualTo(AccordType.COLOCATION_TOURNANTE);
+        // Félix n'a aucun logement : lui dire que « l'un de vous lâche son
+        // logement » n'a pas de sens, il n'a rien à lâcher. Le message doit
+        // proposer de partager celui de Massi.
+        assertThat(result.messageMatchPotentiel())
+                .doesNotContain("lâche")
+                .contains("partager le vôtre");
     }
 
     // ─── Cas 48 : L2 / L0 — le message nomme la ville complémentaire ─────────

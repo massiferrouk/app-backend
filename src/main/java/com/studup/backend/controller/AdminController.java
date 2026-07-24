@@ -19,6 +19,7 @@ import com.studup.backend.service.ModerationService;
 import com.studup.backend.service.ReviewService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -58,7 +59,8 @@ public class AdminController {
     public ResponseEntity<PageResponse<AdminUserResponse>> listUsers(
             @RequestParam(required = false) UserRole role,
             @RequestParam(required = false) Boolean isActive,
-            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt",
+                    direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(
                 PageResponse.from(adminService.listUsers(role, isActive, pageable)));
     }

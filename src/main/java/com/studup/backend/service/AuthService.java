@@ -52,6 +52,16 @@ public class AuthService {
     @Value("${jwt.refresh-expiration-ms}")
     private long refreshExpirationMs;
 
+    // Confirme automatiquement les comptes à l'inscription, sans e-mail.
+    // false partout SAUF en profil « demo » (application-demo.properties) :
+    // en local il n'y a pas de clé SendGrid, donc aucun e-mail de confirmation
+    // ne part, et un compte créé à l'inscription resterait bloqué au login
+    // (EmailNotConfirmedException). En démonstration, on veut que le flux
+    // d'inscription soit utilisable de bout en bout. Ne JAMAIS activer en prod :
+    // la confirmation d'e-mail y reste une vraie barrière (US-001).
+    @Value("${app.auto-confirm-accounts:false}")
+    private boolean autoConfirmAccounts;
+
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        PasswordEncoder passwordEncoder,
@@ -99,13 +109,21 @@ public class AuthService {
                 .firstName(request.firstName())
                 .lastName(request.lastName())
                 .role(request.role())
-                .isVerified(false)
+                // Confirmé d'emblée en démo, à confirmer par e-mail sinon (prod)
+                .isVerified(autoConfirmAccounts)
                 .isActive(true)
                 .build();
 
         // saveAndFlush garantit que le user est persisté en BDD avant l'INSERT JDBC du token (FK)
         User savedUser = userRepository.saveAndFlush(user);
-        emailConfirmationService.sendConfirmationEmail(savedUser);
+
+        if (autoConfirmAccounts) {
+            // Mode démonstration : le compte est déjà vérifié, on n'envoie
+            // aucun e-mail (il n'y a de toute façon pas de clé SendGrid).
+            log.info("Compte auto-confirmé (profil demo) : userId={}", savedUser.getId());
+        } else {
+            emailConfirmationService.sendConfirmationEmail(savedUser);
+        }
 
         metrics.incrementInscriptionsDaily();
         log.info("New user registered: userId={}", savedUser.getId());

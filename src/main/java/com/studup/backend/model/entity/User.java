@@ -6,7 +6,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -30,9 +32,14 @@ public class User {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    @Enumerated(EnumType.STRING)
+    // Enum PostgreSQL natif : @JdbcTypeCode(NAMED_ENUM) lie le paramètre comme
+    // enum natif, aussi bien en écriture qu'en comparaison (WHERE role = ?).
+    // L'ancien couple @Enumerated(STRING) + @ColumnTransformer(write=CAST) ne
+    // castait qu'à l'écriture : le filtre « comptes par rôle » de l'admin
+    // partait alors en 500 (operator does not exist: user_role = varchar).
+    // Même mapping que Logement.statut / Logement.type, qui fonctionne.
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "user_role")
-    @org.hibernate.annotations.ColumnTransformer(write = "CAST(? AS user_role)")
     private UserRole role;
 
     @Column(name = "first_name", nullable = false, length = 100)

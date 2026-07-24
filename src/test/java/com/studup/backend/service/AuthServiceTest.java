@@ -184,6 +184,20 @@ class AuthServiceTest {
     // ─── Tests renouvellement ─────────────────────────────────────────────────
 
     @Test
+    void shouldRefuserUneInscriptionAvecLeRoleAdmin() {
+        // Escalade de privilèges : le formulaire ne propose pas ADMIN, mais un
+        // appel direct à l'API contournait l'interface et créait un compte
+        // avec tous les droits d'administration (APP-121).
+        RegisterRequest request = new RegisterRequest(
+                "pirate@studup.fr", "Password123!", "Pi", "Rate", UserRole.ADMIN);
+
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOf(UnauthorizedException.class);
+
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void shouldRejectRefreshWhenAccountSuspended() {
         // Un compte suspendu par un admin garde un refresh token valide en base :
         // sans ce contrôle, il se redonnait un access token neuf indéfiniment,

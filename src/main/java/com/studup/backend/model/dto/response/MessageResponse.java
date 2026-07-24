@@ -11,7 +11,12 @@ public record MessageResponse(
         UUID senderId,
         String content,
         Boolean isRead,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        /**
+         * Masqué par la modération (APP-121). Le contenu reste en base pour
+         * la traçabilité, mais l'application ne doit plus l'afficher.
+         */
+        Boolean isHidden
 ) {
     public static MessageResponse from(Message message) {
         return new MessageResponse(
@@ -20,7 +25,8 @@ public record MessageResponse(
                 message.getSenderId(),
                 message.getContent(),
                 message.getIsRead(),
-                message.getCreatedAt()
+                message.getCreatedAt(),
+                message.getIsHidden()
         );
     }
 }

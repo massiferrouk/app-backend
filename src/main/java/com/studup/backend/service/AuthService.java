@@ -11,6 +11,7 @@ import com.studup.backend.model.dto.response.AuthResponse;
 import com.studup.backend.model.dto.response.UserResponse;
 import com.studup.backend.model.entity.RefreshToken;
 import com.studup.backend.model.entity.User;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.RefreshTokenRepository;
 import com.studup.backend.repository.UserRepository;
 import com.studup.backend.config.StudUpMetrics;
@@ -75,6 +76,21 @@ public class AuthService {
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new DuplicateEmailException("Un compte existe déjà avec cet email");
+        }
+
+        // Le rôle vient du client : il ne peut donc JAMAIS être ADMIN.
+        //
+        // Le formulaire d'inscription ne propose pas ce choix, mais un appel
+        // direct à l'API (curl, Postman) contournait l'interface et créait un
+        // compte disposant de tous les droits d'administration. Un contrôle
+        // côté client n'est pas un contrôle de sécurité.
+        //
+        // Les comptes ADMIN sont attribués exclusivement en base, par une
+        // personne ayant déjà accès au serveur.
+        if (request.role() == UserRole.ADMIN) {
+            log.warn("Tentative d'inscription avec le rôle ADMIN — refusée");
+            throw new UnauthorizedException(
+                    "Ce rôle ne peut pas être choisi à l'inscription");
         }
 
         User user = User.builder()

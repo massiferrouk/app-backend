@@ -5,7 +5,7 @@ Chaque faille du Top 10 OWASP est mise en regard des mesures concrètes du proje
 
 | # | Faille OWASP 2021 | Mesures mises en œuvre dans StudUp |
 |---|---|---|
-| A01 | Broken Access Control | Ownership checks avant chaque modification de ressource ; `.anyRequest().authenticated()` ; endpoints Actuator réservés au rôle ADMIN ; JWT stateless |
+| A01 | Broken Access Control | Ownership checks avant chaque modification de ressource ; `.anyRequest().authenticated()` ; `@PreAuthorize("hasRole('ADMIN')")` au niveau de la classe `AdminController` ; **rôle ADMIN refusé à l'inscription (APP-121)** ; élévation de privilèges impossible par le changement de mode ; JWT stateless |
 | A02 | Cryptographic Failures | Mots de passe hashés BCrypt ; refresh tokens stockés hashés (SHA-256) ; JWT signés ; tokens côté mobile dans Keychain/Keystore (flutter_secure_storage) |
 | A03 | Injection | Spring Data JPA / Hibernate (requêtes paramétrées, aucune concaténation SQL) ; Bean Validation sur toutes les entrées ; DTOs séparés des entités |
 | A04 | Insecure Design | Architecture en couches (controller/service/repository) ; rate limiting Bucket4j ; expiration des accords ; séparation stricte DTO / entité |
@@ -15,6 +15,72 @@ Chaque faille du Top 10 OWASP est mise en regard des mesures concrètes du proje
 | A08 | Software & Data Integrity Failures | Validation du vrai type MIME des fichiers (Apache Tika, pas l'extension) ; webhooks idempotents |
 | A09 | Security Logging & Monitoring Failures | Logback JSON structuré + MDC ; aucune donnée personnelle ni token dans les logs ; Sentry |
 | A10 | Server-Side Request Forgery (SSRF) | Surface quasi nulle : le seul appel sortant (géocodage Nominatim) n'utilise pas d'URL fournie par l'utilisateur |
+
+## Détail A01 — Élévation de privilèges vers ADMIN (APP-121)
+
+### La faille trouvée
+
+`RegisterRequest` acceptait un `UserRole` libre et `AuthService` le recopiait tel quel :
+le formulaire d'inscription ne propose pas ADMIN, mais l'API l'acceptait.
+
+    curl -X POST .../api/v1/auth/register       -d '{"email":"x@y.fr","password":"Password123!",
+           "firstName":"A","lastName":"B","role":"ADMIN"}'
+
+Le compte était créé avec **tous les droits d'administration** : liste et sanction des
+comptes, modération, tableau de bord. Classée A01, la faille la plus fréquente du Top 10.
+
+**Cause racine** : avoir pris un contrôle d'interface pour un contrôle de sécurité.
+Masquer une option dans un formulaire n'empêche personne d'appeler l'API directement.
+Toute donnée venant du client doit être validée côté serveur, sans exception.
+
+### La correction
+
+`AuthService.register` refuse explicitement le rôle ADMIN (HTTP 403) et journalise la
+tentative. Les comptes administrateur s'attribuent **uniquement en base**, par une
+personne disposant déjà d'un accès au serveur : le privilège ne peut pas s'auto-attribuer
+par un parcours applicatif.
+
+### Les quatre portes vérifiées
+
+| Vecteur | Résultat |
+|---|---|
+| Inscription avec `role: ADMIN` | **403** + aucun compte créé (vérifié en base) |
+| Routes `/admin/**` avec un compte étudiant | **403** sur les 6 routes |
+| Routes `/admin/**` sans authentification | **401** |
+| Changement de mode vers ADMIN | Refusé, rôle inchangé en base |
+
+Tests : `AdminIntegrationTest` (Testcontainers, PostgreSQL réel) et
+`AuthServiceTest#shouldRefuserUneInscriptionAvecLeRoleAdmin`.
+
+Ces tests rejouent l'attaque plutôt que de vérifier une implémentation : ils resteront
+valables même si le code change de forme.
+
+### Défenses déjà en place, confirmées par l'audit
+
+- **`@PreAuthorize` porté par la classe** `AdminController` : toute route ajoutée est
+  protégée par construction — impossible d'oublier l'annotation sur un nouvel endpoint.
+- **Le JWT ne fait pas autorité sur le rôle.** Il est signé (falsification impossible),
+  et `JwtAuthFilter` recharge l'utilisateur depuis la base à chaque requête : c'est le
+  rôle en base qui décide. Un rôle retiré prend effet immédiatement, sans attendre
+  l'expiration du token.
+- **Deux niveaux de révocation** : blacklist du JTI au logout, et révocation en bloc de
+  tous les tokens d'un compte suspendu (clé Redis) + invalidation de ses refresh tokens.
+  Sans le second niveau, une suspension n'aurait tenu que le temps de l'access token.
+- **Un administrateur ne peut ni se sanctionner ni sanctionner un pair**
+  (`AdminService.checkNotAdmin`) : un compte admin compromis ne peut pas neutraliser
+  les autres administrateurs.
+- **Traçabilité** : chaque sanction est journalisée avec l'identifiant de l'admin et
+  celui de la cible — jamais l'adresse e-mail (règle « aucune PII dans les logs »).
+
+### Limites assumées pour cette version
+
+- **Pas de rate limiting sur `/admin/**`** : Bucket4j ne couvre que `/auth/login` et
+  `/auth/register`. Un token administrateur volé permettrait d'énumérer la base sans
+  limite. Exploitation conditionnée à la compromission préalable d'un admin.
+- **Pas de second facteur pour les comptes administrateur.** Un back-office réel le
+  justifierait ; hors périmètre de cette version.
+- **`CORS_ALLOWED_ORIGINS=*` par défaut** : valable en développement, à restreindre
+  impérativement en production.
 
 ## Détail A06 — Scan de dépendances (APP-113)
 
@@ -92,5 +158,9 @@ dès que les correctifs amont seront publiés.
 
 - **CSRF désactivé** : choix volontaire et correct pour une API REST stateless
   authentifiée par JWT (pas de cookie de session, donc pas de vecteur CSRF classique).
+- **A01 (APP-121)** : la faille d'élévation de privilèges a été trouvée en auditant le
+  code après coup, pas par la suite de tests — celle-ci mockait les couches basses et ne
+  touchait jamais PostgreSQL. Enseignement retenu : les contrôles d'accès se testent en
+  bout en bout, contre une vraie base, en rejouant l'attaque.
 - Le scan A06 **détecte** les composants vulnérables/obsolètes ; leur mise à jour est
   une décision distincte (risque de régression), pilotée ticket par ticket.

@@ -152,8 +152,11 @@ docker run --name yuniv-postgres \
 
 L'API écoute sur `http://localhost:8080`, préfixe `/api/v1`.
 
-Redis et MinIO sont optionnels en développement : sans eux, la révocation de tokens et
-l'upload de photos ne fonctionnent pas, le reste tourne normalement.
+**Redis est obligatoire**, même en développement : le filtre JWT interroge la blacklist
+et la liste des comptes révoqués à *chaque* requête authentifiée. Sans lui, l'application
+démarre mais toute requête authentifiée échoue.
+
+MinIO est optionnel : sans lui, seul l'upload de photos ne fonctionne pas.
 
 ```bash
 docker run --name studup-redis -p 6379:6379 -d redis:7

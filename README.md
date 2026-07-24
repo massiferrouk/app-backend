@@ -226,7 +226,8 @@ docker compose exec postgres psql -U yuniv -d yunivdb
   évoluer lui-même le statut : à contacter, contacté, visite prévue, visitée, acceptée.
 - **Messagerie temps réel** — WebSocket STOMP, un fil par annonce, historique persisté.
 - **Notifications** — in-app et push (Firebase), avec préférences par type et par canal.
-- **Administration** — modération des messages et des avis, suspension et bannissement.
+- **Administration** — modération des messages, des annonces et des avis, suspension
+  et bannissement.
 
 ---
 
@@ -245,7 +246,7 @@ docker compose exec postgres psql -U yuniv -d yunivdb
 | Géocodage | Nominatim / Base Adresse Nationale |
 | Tâches planifiées | Spring Scheduling + ShedLock |
 | Observabilité | Actuator, Logback JSON, métriques Micrometer |
-| Tests | JUnit 5, Mockito, MockMvc |
+| Tests | JUnit 5, Mockito, MockMvc, Testcontainers |
 | CI / déploiement | GitHub Actions, Docker multi-stage, Railway |
 
 ---
@@ -388,9 +389,11 @@ S'y ajoutent :
 
 - les tests d'algorithme, qui rejouent des grilles de cas complètes — tous les rythmes,
   croisés avec toutes les combinaisons de villes et de première semaine ;
-- quatre tests d'intégration sur Testcontainers (`src/test/.../integration/`), qui
-  couvrent l'authentification de bout en bout, la mise à jour d'un profil d'alternance
-  et les notifications de match.
+- dix classes de tests d'intégration sur Testcontainers (`src/test/.../integration/`),
+  qui couvrent l'authentification de bout en bout, le cycle de vie des logements
+  (recherche, suppression, association de ville), la mise à jour d'un profil
+  d'alternance, le matching et sa performance, la modération et les contrôles de
+  propriété.
 
 Un seul test reste désactivé : `BackendApplicationTests`, qui charge le contexte Spring
 complet et exige en plus MinIO. Le passer sous Testcontainers est la prochaine étape
@@ -432,8 +435,23 @@ https://app-backend-production-219d.up.railway.app        (préfixe /api/v1)
 https://app-backend-production-219d.up.railway.app/actuator/health/liveness
 ```
 
+> **Configuration de l'instance d'évaluation.** Elle tourne avec le jeu de démonstration
+> chargé (`SPRING_PROFILES_ACTIVE=demo`) : les comptes `@studup.demo`, déjà confirmés dans
+> le seed, se connectent sans aucune mise en place. La confirmation par e-mail à
+> l'inscription y reste **active** (`APP_AUTO_CONFIRM_ACCOUNTS=false`, qui surcharge la
+> valeur du profil `demo`), afin que le parcours de production réel soit démontrable en
+> ligne. L'auto-confirmation existe comme commodité — utile en local, sans clé SendGrid —
+> mais n'est volontairement pas retenue sur l'instance en ligne.
+
 Pour lancer l'application mobile pointée sur ce backend en ligne plutôt qu'en local,
-voir la section « Tester l'application déployée » du [README racine](../README.md).
+il suffit d'injecter son URL au build (depuis le dépôt de l'application) :
+
+```bash
+flutter run -d chrome --dart-define=API_URL=https://app-backend-production-219d.up.railway.app/api/v1
+```
+
+La marche à suivre détaillée est dans la section « Tester l'application déployée » du
+README racine du dossier de livraison.
 
 La procédure de mise à jour après mise en service — livrer un correctif, faire évoluer
 le schéma, revenir en arrière — est décrite dans

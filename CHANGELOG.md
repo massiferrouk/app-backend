@@ -9,6 +9,14 @@ Le détail fin de chaque évolution est traçable dans l'historique Git
 
 ## [Non publié]
 
+_Aucune évolution en cours pour le moment._
+
+## [1.1.0] — 2026-07-24
+
+> Version **déployée en production** sur Railway (redéploiement automatique au merge sur
+> `main`). Elle regroupe les correctifs des anomalies relevées en recette (A-01 à A-09),
+> l'espace d'administration et l'outillage de démonstration.
+
 ### Corrigé — anomalies relevées en recette
 - Déploiement du stockage objet MinIO en production : la publication d'un logement
   avec photo échouait, l'API pointant encore sur `localhost:9000` (A-01)
@@ -53,7 +61,7 @@ Première version complète et fonctionnelle de l'API.
 - Rate limiting Bucket4j sur login et register (US-038)
 - Contrôles d'ownership `@PreAuthorize`, endpoints admin protégés (US-040)
 - Validation des fichiers par magic bytes Apache Tika (US-041)
-- GlobalExceptionHandler, logs JSON structurés sans données personnelles (US-037, US-045)
+- GlobalExceptionHandler, logs JSON structurés sans donnée sensible (US-037, US-045)
 - Scan de dépendances OWASP A06 + montée de versions sécurité (APP-113, APP-114)
 
 ### Profil alternant & calendrier
@@ -68,7 +76,6 @@ Première version complète et fonctionnelle de l'API.
 - Économies estimées à partir des loyers publiés (APP-103)
 - Échange réel basé sur les logements publiés — règle §3 (APP-110)
 - Moteur de scénarios : surplus même ville, logement manquant, relais (APP-109)
-- Notification des deux alternants lors d'un nouveau match (APP-98)
 
 ### Logements & accords
 - Publication de logements avec photos, association aux villes du profil (US-007, US-011)
@@ -85,5 +92,6 @@ Première version complète et fonctionnelle de l'API.
 - Couverture JaCoCo : 86 % des lignes / 83 % des instructions (99 % sur le moteur de matching)
 - Pipeline CI GitHub Actions : build + tests sur chaque push et PR
 
-[Non publié]: https://github.com/massiferrouk/app-backend/compare/v1.0.0...HEAD
+[Non publié]: https://github.com/massiferrouk/app-backend/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/massiferrouk/app-backend/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/massiferrouk/app-backend/releases/tag/v1.0.0

@@ -1,0 +1,32 @@
+# Dependabot — veille automatisée des dépendances (APP-113 / OWASP A06).
+# Dependabot ouvre automatiquement des pull requests de mise à jour ;
+# la CI (build + 534 tests) les valide, l'humain décide du merge.
+version: 2
+updates:
+  # Dépendances Maven (backend Spring Boot)
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "backend"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Images Docker (Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # Actions GitHub utilisées par le pipeline CI
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(deps)"

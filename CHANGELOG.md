@@ -45,7 +45,7 @@ _Aucune évolution en cours pour le moment._
   autre utilisateur. Contrôle de propriété ajouté sur l'endpoint concerné (A-08, OWASP A01)
 
 ### Qualité
-- 534 tests automatisés (68 classes : services, controllers, algorithme, sécurité,
+- 535 tests automatisés (68 classes : services, controllers, algorithme, sécurité,
   intégration Testcontainers)
 - Un test de non-régression ajouté pour chacune des anomalies ci-dessus, dont
   `AlternantProfileUpdateIntegrationTest` qui verrouille le correctif A-05 et
@@ -88,7 +88,7 @@ Première version complète et fonctionnelle de l'API.
 - Avis, score de réputation, modération (US-030, US-031, US-032)
 
 ### Qualité
-- 534 tests automatisés (68 classes : unitaires, controller, intégration Testcontainers)
+- 535 tests automatisés (68 classes : unitaires, controller, intégration Testcontainers)
 - Couverture JaCoCo : 86 % des lignes / 83 % des instructions (99 % sur le moteur de matching)
 - Pipeline CI GitHub Actions : build + tests sur chaque push et PR
 

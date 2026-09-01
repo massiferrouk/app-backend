@@ -3,7 +3,7 @@
 # JRE dans l'image finale -> image plus petite et plus sure.
 
 # ---- Etape 1 : build ----
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /app
 
 # On copie d'abord le wrapper Maven et le pom pour profiter du cache Docker :
@@ -18,7 +18,7 @@ COPY src/ src/
 RUN ./mvnw clean package -DskipTests -B
 
 # ---- Etape 2 : runtime ----
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # On recupere uniquement le jar construit a l'etape precedente.

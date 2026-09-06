@@ -15,6 +15,7 @@ import com.studup.backend.service.NotificationTemplateService.NotificationTempla
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,17 +33,20 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final FCMService fcmService;
     private final NotificationTemplateService templateService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public NotificationService(NotificationRepository notificationRepository,
                                 NotificationPreferenceRepository preferenceRepository,
                                 UserRepository userRepository,
                                 FCMService fcmService,
-                                NotificationTemplateService templateService) {
+                                NotificationTemplateService templateService,
+                                SimpMessagingTemplate messagingTemplate) {
         this.notificationRepository = notificationRepository;
         this.preferenceRepository = preferenceRepository;
         this.userRepository = userRepository;
         this.fcmService = fcmService;
         this.templateService = templateService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     /**
@@ -79,7 +83,15 @@ public class NotificationService {
                 .payload(payload)
                 .isRead(false)
                 .build();
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+
+        // 2 bis. Diffusion temps réel sur le topic personnel de l'utilisateur (APP-122).
+        // Le front reçoit la notification instantanément : badge Alertes mis à jour +
+        // bannière à l'écran, sans avoir à changer d'onglet. C'est le canal IN-APP,
+        // indépendant des préférences push FCM (traitées juste après) — même mécanique
+        // que la messagerie (APP-102, /topic/user/{id}/messages).
+        messagingTemplate.convertAndSend(
+                "/topic/user/" + userId + "/notifications", NotificationResponse.from(saved));
 
         // 3. Vérifier la préférence push de l'utilisateur
         boolean pushAutorise = isPushEnabled(userId, type);

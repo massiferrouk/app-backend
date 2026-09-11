@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -41,6 +42,7 @@ class NotificationServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private FCMService fcmService;
     @Mock private NotificationTemplateService templateService;
+    @Mock private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private NotificationService notificationService;
@@ -85,6 +87,28 @@ class NotificationServiceTest {
         // Notification persistée en base mais push non envoyé
         verify(notificationRepository).save(any());
         verifyNoInteractions(fcmService);
+    }
+
+    // ─── shouldBroadcastNotificationRealtime ─────────────────────────────────
+
+    @Test
+    void shouldBroadcastNotificationRealtime() {
+        when(templateService.buildTemplate(any(), any()))
+                .thenReturn(new NotificationTemplateService.NotificationTemplate("Titre", "Corps"));
+        when(notificationRepository.save(any())).thenReturn(notification);
+        // Pas de préférence → push activé, peu importe : le broadcast in-app
+        // doit avoir lieu dans tous les cas, indépendamment du push FCM.
+        when(preferenceRepository.findByUserId(any())).thenReturn(List.of());
+        when(userRepository.findById(any())).thenReturn(Optional.of(user));
+        when(fcmService.sendNotification(any(), any(), any(), any())).thenReturn(true);
+
+        notificationService.notify(user.getId(), NotificationType.ANNONCE_SUIVIE,
+                Map.of(), "logements/123");
+
+        // La notification est diffusée en temps réel sur le topic personnel (APP-122)
+        verify(messagingTemplate).convertAndSend(
+                eq("/topic/user/" + user.getId() + "/notifications"),
+                any(NotificationResponse.class));
     }
 
     // ─── shouldSendPushWhenPreferenceEnabled ─────────────────────────────────

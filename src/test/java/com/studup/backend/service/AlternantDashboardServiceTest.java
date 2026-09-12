@@ -73,7 +73,7 @@ class AlternantDashboardServiceTest {
                 AccordType.ECHANGE_PARTIEL, true, null,
                 3, 0, 1, null, List.of(),
                 null, null, economie, List.of(),
-                "3 sem. Paris / 1 sem. Lyon");
+                "3 sem. Paris / 1 sem. Lyon", null);
     }
 
     // ─── cas nominal : accord prochain + accord en attente ───────────────────

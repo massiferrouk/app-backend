@@ -42,7 +42,10 @@ public record MatchingSuggestionResponse(
         // 1 sem. Lyon ». Construit ici, à la source, pour que la logique
         // « quelle ville prend le plus de semaines » reste au même endroit que
         // la génération du calendrier — le front n'a plus qu'à l'afficher.
-        String rythmeLabel
+        String rythmeLabel,
+        // Aperçu du logement de l'autre alternant (APP-122) : vignette + infos
+        // sur la carte de match. null si l'autre n'a pas de logement publié.
+        LogementApercuResponse logementBApercu
 ) {
     /**
      * isMatchActif et les IDs de logements viennent du MatchingService : le
@@ -54,7 +57,8 @@ public record MatchingSuggestionResponse(
                                                   boolean isMatchActif,
                                                   UUID logementAId,
                                                   UUID logementBId,
-                                                  List<Scenario> scenarios) {
+                                                  List<Scenario> scenarios,
+                                                  LogementApercuResponse logementBApercu) {
         return new MatchingSuggestionResponse(
                 profile.getId(),
                 profile.getUser().getId(),
@@ -76,7 +80,8 @@ public record MatchingSuggestionResponse(
                 logementBId,
                 result.economieMensuelle(),
                 scenarios.stream().map(ScenarioResponse::from).toList(),
-                buildRythmeLabel(profile)
+                buildRythmeLabel(profile),
+                logementBApercu
         );
     }
 

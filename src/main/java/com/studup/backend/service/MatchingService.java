@@ -10,6 +10,7 @@ import com.studup.backend.algorithm.Scenario;
 import com.studup.backend.algorithm.ScenarioAdvisor;
 import com.studup.backend.exception.ResourceNotFoundException;
 import com.studup.backend.model.dto.response.ColocationResponse;
+import com.studup.backend.model.dto.response.LogementApercuResponse;
 import com.studup.backend.model.dto.response.MatchingSuggestionResponse;
 import com.studup.backend.model.dto.response.PartialExchangeResponse;
 import com.studup.backend.model.entity.AlternanceSchedule;
@@ -21,6 +22,7 @@ import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.repository.AlternanceScheduleRepository;
 import com.studup.backend.repository.AlternantProfileRepository;
 import com.studup.backend.repository.LogementRepository;
+import com.studup.backend.repository.PhotoLogementRepository;
 import com.studup.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,8 @@ public class MatchingService {
     private final PartialExchangeOptimizer partialExchangeOptimizer;
     private final ColocationMatcher colocationMatcher;
     private final ScenarioAdvisor scenarioAdvisor;
+    private final PhotoLogementRepository photoRepository;
+    private final MinioService minioService;
 
     public MatchingService(AlternantProfileRepository profileRepository,
                            AlternanceScheduleRepository scheduleRepository,
@@ -50,7 +54,9 @@ public class MatchingService {
                            CompatibilityCalculator calculator,
                            PartialExchangeOptimizer partialExchangeOptimizer,
                            ColocationMatcher colocationMatcher,
-                           ScenarioAdvisor scenarioAdvisor) {
+                           ScenarioAdvisor scenarioAdvisor,
+                           PhotoLogementRepository photoRepository,
+                           MinioService minioService) {
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
         this.userRepository = userRepository;
@@ -59,6 +65,8 @@ public class MatchingService {
         this.partialExchangeOptimizer = partialExchangeOptimizer;
         this.colocationMatcher = colocationMatcher;
         this.scenarioAdvisor = scenarioAdvisor;
+        this.photoRepository = photoRepository;
+        this.minioService = minioService;
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +128,8 @@ public class MatchingService {
 
                     return MatchingSuggestionResponse.from(
                             candidate, result, isMatchActif,
-                            myLogementId, candidateLogementId, scenarios);
+                            myLogementId, candidateLogementId, scenarios,
+                            buildApercuLogement(candidateLogement));
                 })
                 // Filtre les profils sans aucune compatibilité : ni type
                 // d'accord proposé, ni scénario d'arrangement (APP-110 — un
@@ -196,6 +205,26 @@ public class MatchingService {
                 .filter(l -> l.getVilleAssociee() != null)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Aperçu léger du logement d'un match pour la carte Matches (APP-122) :
+     * ville, type, loyer + URL signée de la photo de couverture (la première).
+     * Retourne null si l'autre n'a pas de logement publié — le front affiche
+     * alors la carte « texte seul ». La photo de couverture est récupérée par
+     * projection des clés (findFileKeysByLogementId), sans charger d'entités.
+     */
+    private LogementApercuResponse buildApercuLogement(Logement logement) {
+        if (logement == null) {
+            return null;
+        }
+        List<String> fileKeys = photoRepository.findFileKeysByLogementId(logement.getId());
+        String photoUrl = fileKeys.isEmpty()
+                ? null
+                : minioService.generatePresignedUrl(fileKeys.get(0));
+        return new LogementApercuResponse(
+                logement.getId(), logement.getVille(),
+                logement.getType(), logement.getLoyer(), photoUrl);
     }
 
     /**

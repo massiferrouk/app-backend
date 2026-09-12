@@ -47,7 +47,8 @@ class MatchingControllerTest {
                 UUID.randomUUID(), UUID.randomUUID(),
                 new java.math.BigDecimal("225"),
                 List.of(),
-                "3 sem. Paris / 1 sem. Lyon"
+                "3 sem. Paris / 1 sem. Lyon",
+                null
         );
     }
 

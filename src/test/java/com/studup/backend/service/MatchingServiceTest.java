@@ -52,6 +52,8 @@ class MatchingServiceTest {
     // @Spy : le vrai moteur de scénarios — classe pure sans dépendance,
     // le mocker n'apporterait rien (même choix que ScheduleGenerator)
     @org.mockito.Spy private ScenarioAdvisor scenarioAdvisor = new ScenarioAdvisor();
+    @Mock private com.studup.backend.repository.PhotoLogementRepository photoRepository;
+    @Mock private com.studup.backend.service.MinioService minioService;
 
     @InjectMocks
     private MatchingService matchingService;
@@ -62,6 +64,13 @@ class MatchingServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Aperçu logement (APP-122) : par défaut aucune photo de couverture.
+        // lenient() car les tests sans logement candidat n'appellent pas ce repo.
+        org.mockito.Mockito.lenient()
+                .when(photoRepository.findFileKeysByLogementId(
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+
         myUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("alice@studup.fr")
@@ -188,6 +197,13 @@ class MatchingServiceTest {
         assertThat(suggestions.get(0).scenarios()).isNotEmpty();
         assertThat(suggestions.get(0).scenarios().get(0).type())
                 .isEqualTo(Scenario.ScenarioType.RELAIS.name());
+        // Aperçu du logement de l'autre (APP-122) : rempli à partir de son
+        // logement, sans photo de couverture ici (aucune photo → URL null).
+        assertThat(suggestions.get(0).logementBApercu()).isNotNull();
+        assertThat(suggestions.get(0).logementBApercu().ville()).isEqualTo("paris");
+        assertThat(suggestions.get(0).logementBApercu().loyer())
+                .isEqualByComparingTo(new BigDecimal("550"));
+        assertThat(suggestions.get(0).logementBApercu().photoUrl()).isNull();
     }
 
     // ─── Inclusion des matchs potentiels ──────────────────────────────────────

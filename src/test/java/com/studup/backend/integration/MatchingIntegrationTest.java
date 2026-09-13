@@ -181,7 +181,6 @@ class MatchingIntegrationTest extends AbstractIntegrationTest {
         return profileRepository.save(AlternantProfile.builder()
                 .user(user)
                 .villeA(villeA).villeB(villeB)
-                .ecole("YNOV").entreprise("TechCorp")
                 .dateDebut(LocalDate.of(2026, 1, 1))
                 .dateFin(LocalDate.of(2026, 12, 31))
                 .rythme(RythmeAlternance.SEMAINE_3_1)

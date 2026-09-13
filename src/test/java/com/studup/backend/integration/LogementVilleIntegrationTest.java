@@ -65,7 +65,6 @@ class LogementVilleIntegrationTest extends AbstractIntegrationTest {
         // Crée le profil alternant via l'API
         HttpEntity<Map<String, Object>> profileReq = new HttpEntity<>(Map.of(
                 "villeA", villeA, "villeB", villeB,
-                "ecole", "YNOV", "entreprise", "TechCorp",
                 "dateDebut", "2026-09-07", "dateFin", "2027-07-12",
                 "rythme", "SEMAINE_3_1"), authHeaders(jwt));
         restTemplate.postForEntity("/api/v1/profile/alternant", profileReq, Map.class);

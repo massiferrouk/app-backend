@@ -73,8 +73,6 @@ public class AlternantProfileService {
                 .user(user)
                 .villeA(request.villeA())
                 .villeB(request.villeB())
-                .ecole(request.ecole())
-                .entreprise(request.entreprise())
                 .dateDebut(request.dateDebut())
                 .dateFin(request.dateFin())
                 .rythme(request.rythme())
@@ -124,8 +122,6 @@ public class AlternantProfileService {
 
         profile.setVilleA(request.villeA());
         profile.setVilleB(request.villeB());
-        profile.setEcole(request.ecole());
-        profile.setEntreprise(request.entreprise());
         profile.setDateDebut(request.dateDebut());
         profile.setDateFin(request.dateFin());
         profile.setRythme(request.rythme());

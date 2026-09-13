@@ -37,12 +37,6 @@ public class AlternantProfile {
     @Column(name = "ville_b", nullable = false, length = 100)
     private String villeB;
 
-    @Column(nullable = false, length = 200)
-    private String ecole;
-
-    @Column(nullable = false, length = 200)
-    private String entreprise;
-
     @Column(name = "date_debut", nullable = false)
     private LocalDate dateDebut;
 

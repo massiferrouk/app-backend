@@ -76,7 +76,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldCreateProfileAndGenerateSchedule() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -111,7 +111,7 @@ class AlternantProfileServiceTest {
         // Ancien client : pas de premiereSemaine envoyée avec un rythme 3-1
         // → le service applique le défaut historique ENTREPRISE (APP-110)
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_3_1, null
         );
@@ -139,7 +139,7 @@ class AlternantProfileServiceTest {
         // Nouveau client : premiereSemaine ECOLE explicite avec un rythme 3-1
         // (l'inverse du défaut) → le choix de l'utilisateur est conservé
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_3_1, PremiereSemaine.ECOLE
         );
@@ -165,7 +165,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldGenerateCorrectLabelsForSemaine11() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -206,7 +206,7 @@ class AlternantProfileServiceTest {
     void shouldStopGeneratingScheduleAfterDateFin() {
         // Contrat court : seulement 4 semaines
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2025, 9, 26),
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -235,7 +235,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldThrowWhenProfileAlreadyExists() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -251,7 +251,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldThrowWhenDateDebutIsAfterDateFin() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2026, 8, 31), LocalDate.of(2025, 9, 1), // dates inversées
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -267,7 +267,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldThrowWhenVillesAreTheSame() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "paris", "ESIEA", "Thales", // même ville, casse différente
+                "Paris", "paris", // même ville, casse différente
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_1_1, null
         );
@@ -285,7 +285,7 @@ class AlternantProfileServiceTest {
         // Décision APP-110 : AUTRE n'est plus saisissable (il générait un
         // faux calendrier 1/1) — seuls les rythmes définis sont acceptés
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.AUTRE, null
         );
@@ -301,7 +301,7 @@ class AlternantProfileServiceTest {
     @Test
     void shouldThrowWhenUserNotFound() {
         CreateAlternantProfileRequest request = new CreateAlternantProfileRequest(
-                "Paris", "Lyon", "ESIEA", "Thales",
+                "Paris", "Lyon",
                 LocalDate.of(2025, 9, 1), LocalDate.of(2026, 8, 31),
                 RythmeAlternance.SEMAINE_1_1, null
         );

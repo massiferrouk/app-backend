@@ -30,8 +30,6 @@ class ScheduleGeneratorTest {
                 .id(UUID.randomUUID())
                 .villeA("Paris")
                 .villeB("Lyon")
-                .ecole("ESIEA")
-                .entreprise("Thales")
                 .dateDebut(debut)
                 .dateFin(fin)
                 .rythme(rythme)

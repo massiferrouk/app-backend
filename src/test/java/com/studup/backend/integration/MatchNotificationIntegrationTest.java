@@ -88,7 +88,6 @@ class MatchNotificationIntegrationTest extends AbstractIntegrationTest {
     private HttpEntity<Map<String, Object>> profileBody(String villeA, String villeB, String jwt) {
         return new HttpEntity<>(Map.of(
                 "villeA", villeA, "villeB", villeB,
-                "ecole", "YNOV", "entreprise", "TechCorp",
                 "dateDebut", "2026-09-07", "dateFin", "2027-07-12",
                 "rythme", "SEMAINE_3_1"), authHeaders(jwt));
     }

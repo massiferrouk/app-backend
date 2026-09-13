@@ -121,7 +121,6 @@ class AlternantProfileUpdateIntegrationTest extends AbstractIntegrationTest {
                                                         String jwt) {
         Map<String, Object> body = new HashMap<>(Map.of(
                 "villeA", villeA, "villeB", villeB,
-                "ecole", "YNOV", "entreprise", "TechCorp",
                 "dateDebut", "2026-09-07", "dateFin", "2027-07-12",
                 "rythme", rythme));
         if (premiereSemaine != null) body.put("premiereSemaine", premiereSemaine);

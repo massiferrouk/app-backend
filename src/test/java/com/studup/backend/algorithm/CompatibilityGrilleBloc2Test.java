@@ -88,12 +88,15 @@ class CompatibilityGrilleBloc2Test {
     void cas37_aucunLogement_matchPotentielSansChiffreInvente() {
         MatchingResult result = calculer(null, null);
 
-        // Potentiel visible (positions 100 % croisées) mais rien d'affirmé :
-        // score réel nul, aucune économie affichée
+        // Positions 100 % croisées, sans logement publié. Le score = COMPATIBILITÉ
+        // des rythmes (APP-122) : il vaut donc 1.0 même sans logement — sinon un
+        // échange total parfait afficherait « Échange total · 0 % », contradictoire.
+        // En revanche rien n'est INVENTÉ sur le concret : le compte d'échange RÉEL
+        // reste 0 et aucune économie n'est affichée tant que les logements manquent.
         assertThat(result.typePropose()).isEqualTo(AccordType.ECHANGE_TOTAL);
         assertThat(result.nbSemainesEchange()).isZero();
         assertThat(result.nbSemainesEchangePotentiel()).isEqualTo(8);
-        assertThat(result.score()).isZero();
+        assertThat(result.score()).isEqualTo(1.0);
         assertThat(result.economieMensuelle()).isEqualByComparingTo("0");
 
         // Scénario « publier » pour les deux

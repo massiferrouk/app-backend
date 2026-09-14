@@ -64,6 +64,11 @@ public class CompatibilityCalculator {
         int nbColocation = 0;
         int nbChevauchement = 0;
 
+        // Les deux logements sont-ils publiés ? Détermine la coloration de
+        // l'échange : « honnête » (seul l'échange réel est vert) quand ils
+        // existent, sinon on colore le potentiel pour informer (APP-122).
+        boolean logementsConnus = logementA != null && logementB != null;
+
         // Compteur par ville pour détecter les semaines récurrentes de colocation
         Map<String, Integer> colocParVille = new HashMap<>();
 
@@ -77,17 +82,25 @@ public class CompatibilityCalculator {
 
             CompatibiliteType type;
             if (villeA.equalsIgnoreCase(villeB)) {
-                // Même ville en même temps : fait de position, vrai quels que
-                // soient les logements
+                // Même ville en même temps : coloc, vraie quels que soient les
+                // logements (déjà colorée sans condition — l'échange l'est
+                // désormais aussi côté potentiel, pour cohérence).
                 type = CompatibiliteType.COLOCATION;
+                nbColocation++;
+                colocParVille.merge(villeA, 1, Integer::sum);
             } else if (positionsCroisees(villeA, villeB, profileA, profileB)) {
-                // Un échange SERAIT possible ici avec les bons logements
                 nbEchangePotentiel++;
-                // Échange RÉEL uniquement si chacun dort dans la ville du
-                // logement publié de l'autre (règle §3 grille APP-110) —
-                // sans logements publiés, on n'affirme rien : semaine neutre,
-                // les scénarios portent le conditionnel.
-                type = estEchangeReel(villeA, villeB, logementA, logementB)
+                // Échange RÉEL : chacun dort dans la ville du logement publié de
+                // l'autre (règle §3 grille). Sert au score réel, à l'économie et
+                // à isMatchActif — donc compté séparément de la coloration.
+                boolean reel = estEchangeReel(villeA, villeB, logementA, logementB);
+                if (reel) nbEchange++;
+                // Coloration (APP-122) : vert dès qu'un échange RÉEL est possible,
+                // ET quand les logements manquent encore (match potentiel), pour
+                // montrer « ici vous pourriez échanger avec un logement ». Quand
+                // les DEUX logements existent, on reste honnête : une semaine
+                // croisée mais non réellement échangeable reste neutre.
+                type = (reel || !logementsConnus)
                         ? CompatibiliteType.ECHANGE
                         : CompatibiliteType.INCOMPATIBLE;
             } else {
@@ -95,36 +108,31 @@ public class CompatibilityCalculator {
             }
 
             semaines.add(SemaineCompatibilite.of(semaine, villeA, villeB, type));
-
-            switch (type) {
-                case ECHANGE -> nbEchange++;
-                case COLOCATION -> {
-                    nbColocation++;
-                    colocParVille.merge(villeA, 1, Integer::sum);
-                }
-                case CHEVAUCHEMENT -> nbChevauchement++;
-                default -> {}
-            }
         }
 
         int total = semaines.size();
-        // Score = semaines où StudUp fait économiser (échange OU coloc) sur le
-        // total. Avant APP-108, seul l'échange comptait : les cas mixtes
-        // (rythmes différents, villes communes) tombaient sous le seuil et
-        // devenaient invisibles alors qu'ils sont les plus fréquents.
-        // Depuis APP-110, seul l'échange RÉEL compte : pas de logements
-        // publiés = score honnête, sans hypothèse silencieuse.
-        double score = total > 0 ? (double) (nbEchange + nbColocation) / total : 0.0;
+
+        // Compteur d'échange RETENU pour le score, le type et le résumé (APP-122).
+        // - Deux logements publiés → on compte l'échange RÉEL : le % reflète ce
+        //   qui est réellement signable aujourd'hui, sans le surévaluer.
+        // - Sinon → on compte l'échange POTENTIEL (positions croisées) : le %
+        //   mesure alors la COMPATIBILITÉ des rythmes, propriété intrinsèque des
+        //   calendriers. Sans ça, un échange total parfait (rythmes inversés)
+        //   mais sans logements publiés tombait à 0 % alors que le type affiché
+        //   restait « Échange total » — contradiction qui trompait l'utilisateur.
+        // Ce choix suit exactement celui du type proposé → score et type
+        // toujours cohérents. « Signable maintenant ? » reste porté séparément
+        // par isMatchActif + le message + la coloration des semaines.
+        int nbEchangeRetenu = logementsConnus ? nbEchange : nbEchangePotentiel;
+
+        // Score = part des semaines où StudUp crée de la valeur (échange retenu
+        // OU colocation) sur le total.
+        double score = total > 0
+                ? (double) (nbEchangeRetenu + nbColocation) / total : 0.0;
         score = Math.min(1.0, Math.round(score * 10000.0) / 10000.0);
 
-        // Type proposé : basé sur le réel quand les deux logements sont
-        // publiés ; sinon sur les positions (potentiel), pour que les matchs
-        // potentiels restent visibles et notifiés — l'app informe, elle ne
-        // décide pas à la place de l'utilisateur (APP-110).
-        boolean logementsConnus = logementA != null && logementB != null;
-        AccordType typePropose = logementsConnus
-                ? determineAccordType(nbEchange, nbColocation, total)
-                : determineAccordType(nbEchangePotentiel, nbColocation, total);
+        AccordType typePropose =
+                determineAccordType(nbEchangeRetenu, nbColocation, total);
 
         String messageMatchPotentiel = buildMessageMatchPotentiel(
                 typePropose, logementA, logementB);
@@ -133,9 +141,9 @@ public class CompatibilityCalculator {
         BigDecimal economie = calculerEconomieMensuelle(
                 typePropose, semaines, logementA, logementB);
 
-        int nbChacunChezSoi = total - nbEchange - nbColocation;
+        int nbChacunChezSoi = total - nbEchangeRetenu - nbColocation;
         String messageResume = buildMessageResume(
-                nbEchange, nbColocation, nbChacunChezSoi, score, typePropose);
+                nbEchangeRetenu, nbColocation, nbChacunChezSoi, score, typePropose);
 
         return new MatchingResult(
                 score,

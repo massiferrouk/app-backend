@@ -71,7 +71,12 @@ public record MatchingSuggestionResponse(
                 result.typePropose(),
                 isMatchActif,
                 result.messageMatchPotentiel(),
-                result.nbSemainesEchange(),
+                // Compte « semaines d'échange » cohérent avec le score (APP-122) :
+                // réel si les deux logements sont publiés, potentiel sinon —
+                // même règle que le score dans le CompatibilityCalculator.
+                (logementAId != null && logementBId != null)
+                        ? result.nbSemainesEchange()
+                        : result.nbSemainesEchangePotentiel(),
                 result.nbSemainesColocation(),
                 result.nbSemainesChevauchement(),
                 result.messageResume(),

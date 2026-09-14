@@ -108,23 +108,29 @@ public class CompatibilityCalculator {
         }
 
         int total = semaines.size();
-        // Score = semaines où StudUp fait économiser (échange OU coloc) sur le
-        // total. Avant APP-108, seul l'échange comptait : les cas mixtes
-        // (rythmes différents, villes communes) tombaient sous le seuil et
-        // devenaient invisibles alors qu'ils sont les plus fréquents.
-        // Depuis APP-110, seul l'échange RÉEL compte : pas de logements
-        // publiés = score honnête, sans hypothèse silencieuse.
-        double score = total > 0 ? (double) (nbEchange + nbColocation) / total : 0.0;
+
+        // Compteur d'échange RETENU pour le score, le type et le résumé (APP-122).
+        // - Deux logements publiés → on compte l'échange RÉEL : le % reflète ce
+        //   qui est réellement signable aujourd'hui, sans le surévaluer.
+        // - Sinon → on compte l'échange POTENTIEL (positions croisées) : le %
+        //   mesure alors la COMPATIBILITÉ des rythmes, propriété intrinsèque des
+        //   calendriers. Sans ça, un échange total parfait (rythmes inversés)
+        //   mais sans logements publiés tombait à 0 % alors que le type affiché
+        //   restait « Échange total » — contradiction qui trompait l'utilisateur.
+        // Ce choix suit exactement celui du type proposé → score et type
+        // toujours cohérents. « Signable maintenant ? » reste porté séparément
+        // par isMatchActif + le message + la coloration des semaines.
+        boolean logementsConnus = logementA != null && logementB != null;
+        int nbEchangeRetenu = logementsConnus ? nbEchange : nbEchangePotentiel;
+
+        // Score = part des semaines où StudUp crée de la valeur (échange retenu
+        // OU colocation) sur le total.
+        double score = total > 0
+                ? (double) (nbEchangeRetenu + nbColocation) / total : 0.0;
         score = Math.min(1.0, Math.round(score * 10000.0) / 10000.0);
 
-        // Type proposé : basé sur le réel quand les deux logements sont
-        // publiés ; sinon sur les positions (potentiel), pour que les matchs
-        // potentiels restent visibles et notifiés — l'app informe, elle ne
-        // décide pas à la place de l'utilisateur (APP-110).
-        boolean logementsConnus = logementA != null && logementB != null;
-        AccordType typePropose = logementsConnus
-                ? determineAccordType(nbEchange, nbColocation, total)
-                : determineAccordType(nbEchangePotentiel, nbColocation, total);
+        AccordType typePropose =
+                determineAccordType(nbEchangeRetenu, nbColocation, total);
 
         String messageMatchPotentiel = buildMessageMatchPotentiel(
                 typePropose, logementA, logementB);
@@ -133,9 +139,9 @@ public class CompatibilityCalculator {
         BigDecimal economie = calculerEconomieMensuelle(
                 typePropose, semaines, logementA, logementB);
 
-        int nbChacunChezSoi = total - nbEchange - nbColocation;
+        int nbChacunChezSoi = total - nbEchangeRetenu - nbColocation;
         String messageResume = buildMessageResume(
-                nbEchange, nbColocation, nbChacunChezSoi, score, typePropose);
+                nbEchangeRetenu, nbColocation, nbChacunChezSoi, score, typePropose);
 
         return new MatchingResult(
                 score,

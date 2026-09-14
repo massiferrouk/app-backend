@@ -64,6 +64,11 @@ public class CompatibilityCalculator {
         int nbColocation = 0;
         int nbChevauchement = 0;
 
+        // Les deux logements sont-ils publiés ? Détermine la coloration de
+        // l'échange : « honnête » (seul l'échange réel est vert) quand ils
+        // existent, sinon on colore le potentiel pour informer (APP-122).
+        boolean logementsConnus = logementA != null && logementB != null;
+
         // Compteur par ville pour détecter les semaines récurrentes de colocation
         Map<String, Integer> colocParVille = new HashMap<>();
 
@@ -77,17 +82,25 @@ public class CompatibilityCalculator {
 
             CompatibiliteType type;
             if (villeA.equalsIgnoreCase(villeB)) {
-                // Même ville en même temps : fait de position, vrai quels que
-                // soient les logements
+                // Même ville en même temps : coloc, vraie quels que soient les
+                // logements (déjà colorée sans condition — l'échange l'est
+                // désormais aussi côté potentiel, pour cohérence).
                 type = CompatibiliteType.COLOCATION;
+                nbColocation++;
+                colocParVille.merge(villeA, 1, Integer::sum);
             } else if (positionsCroisees(villeA, villeB, profileA, profileB)) {
-                // Un échange SERAIT possible ici avec les bons logements
                 nbEchangePotentiel++;
-                // Échange RÉEL uniquement si chacun dort dans la ville du
-                // logement publié de l'autre (règle §3 grille APP-110) —
-                // sans logements publiés, on n'affirme rien : semaine neutre,
-                // les scénarios portent le conditionnel.
-                type = estEchangeReel(villeA, villeB, logementA, logementB)
+                // Échange RÉEL : chacun dort dans la ville du logement publié de
+                // l'autre (règle §3 grille). Sert au score réel, à l'économie et
+                // à isMatchActif — donc compté séparément de la coloration.
+                boolean reel = estEchangeReel(villeA, villeB, logementA, logementB);
+                if (reel) nbEchange++;
+                // Coloration (APP-122) : vert dès qu'un échange RÉEL est possible,
+                // ET quand les logements manquent encore (match potentiel), pour
+                // montrer « ici vous pourriez échanger avec un logement ». Quand
+                // les DEUX logements existent, on reste honnête : une semaine
+                // croisée mais non réellement échangeable reste neutre.
+                type = (reel || !logementsConnus)
                         ? CompatibiliteType.ECHANGE
                         : CompatibiliteType.INCOMPATIBLE;
             } else {
@@ -95,16 +108,6 @@ public class CompatibilityCalculator {
             }
 
             semaines.add(SemaineCompatibilite.of(semaine, villeA, villeB, type));
-
-            switch (type) {
-                case ECHANGE -> nbEchange++;
-                case COLOCATION -> {
-                    nbColocation++;
-                    colocParVille.merge(villeA, 1, Integer::sum);
-                }
-                case CHEVAUCHEMENT -> nbChevauchement++;
-                default -> {}
-            }
         }
 
         int total = semaines.size();
@@ -120,7 +123,6 @@ public class CompatibilityCalculator {
         // Ce choix suit exactement celui du type proposé → score et type
         // toujours cohérents. « Signable maintenant ? » reste porté séparément
         // par isMatchActif + le message + la coloration des semaines.
-        boolean logementsConnus = logementA != null && logementB != null;
         int nbEchangeRetenu = logementsConnus ? nbEchange : nbEchangePotentiel;
 
         // Score = part des semaines où StudUp crée de la valeur (échange retenu

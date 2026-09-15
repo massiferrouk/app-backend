@@ -300,7 +300,7 @@ class AdminControllerTest {
                 null, null, LogementType.STUDIO, new BigDecimal("25"), 1,
                 new BigDecimal("700"), BigDecimal.ZERO, "desc", new String[]{},
                 statut, false, true, null, List.of(), OffsetDateTime.now(),
-                "Bob", note);
+                "Bob", UserRole.PROPRIETAIRE, note);
     }
 
     @Test

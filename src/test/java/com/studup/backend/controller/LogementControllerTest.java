@@ -10,6 +10,7 @@ import com.studup.backend.model.dto.response.LogementResponse;
 import com.studup.backend.model.dto.response.PageResponse;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.model.enums.VilleAssociee;
 import com.studup.backend.security.CustomUserDetailsService;
 import com.studup.backend.security.JwtBlacklistService;
@@ -92,6 +93,7 @@ class LogementControllerTest {
                 List.of(),
                 OffsetDateTime.now(),
                 "Pierre",
+                UserRole.PROPRIETAIRE,
                 null // moderationNote (APP-121)
         );
     }
@@ -257,6 +259,7 @@ class LogementControllerTest {
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
                 LogementStatut.ACTIF, false, true, null, List.of(), OffsetDateTime.now(), "Pierre",
+                UserRole.PROPRIETAIRE,
                 null // moderationNote (APP-121)
         );
 
@@ -293,6 +296,7 @@ class LogementControllerTest {
                 null, null, LogementType.STUDIO, new BigDecimal("25.00"), 1,
                 new BigDecimal("800.00"), new BigDecimal("50.00"), null, null,
                 LogementStatut.ACTIF, false, true, VilleAssociee.VILLE_A, List.of(), OffsetDateTime.now(), "Pierre",
+                UserRole.PROPRIETAIRE,
                 null // moderationNote (APP-121)
         );
 

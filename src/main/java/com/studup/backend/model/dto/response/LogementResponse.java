@@ -3,6 +3,7 @@ package com.studup.backend.model.dto.response;
 import com.studup.backend.model.entity.Logement;
 import com.studup.backend.model.enums.LogementStatut;
 import com.studup.backend.model.enums.LogementType;
+import com.studup.backend.model.enums.UserRole;
 import com.studup.backend.model.enums.VilleAssociee;
 
 import java.math.BigDecimal;
@@ -34,6 +35,10 @@ public record LogementResponse(
         // Prénom du propriétaire — permet au frontend d'afficher son nom
         // (bouton « Contacter ») sans requête supplémentaire (relation déjà chargée).
         String ownerPrenom,
+        // Rôle de l'annonceur (APP-122) : permet au frontend de distinguer un
+        // vrai propriétaire (bailleur) d'un pair (alternant/étudiant qui propose
+        // son propre logement).
+        UserRole ownerRole,
         // Motif de la suspension par un administrateur (APP-121) — null tant
         // que l'annonce n'a pas été modérée. Sert à expliquer au propriétaire
         // pourquoi son annonce n'est plus visible.
@@ -62,6 +67,7 @@ public record LogementResponse(
                 photoUrls,
                 logement.getCreatedAt(),
                 logement.getOwner().getFirstName(),
+                logement.getOwner().getRole(),
                 logement.getModerationNote()
         );
     }
